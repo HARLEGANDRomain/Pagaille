@@ -109,11 +109,33 @@ export interface GBVolume {
     imageLinks?: { thumbnail?: string }
     language?: string
     categories?: string[]
+    description?: string
     /** Renseignés par la fonction serveur pour les notices de la BnF. */
     source?: 'bnf'
     format?: 'poche' | 'broche'
     collection?: string
   }
+}
+
+/** Résumé prêt à afficher : sans balises, espaces propres, coupé proprement ; `null` s'il est trop court pour servir. */
+export function cleanSynopsis(raw: string | null | undefined, max = 1500): string | null {
+  if (!raw) return null
+  const t = raw
+    .replace(/<br\s*\/?>/gi, '\n').replace(/<\/(p|div|li)>/gi, '\n').replace(/<[^>]+>/g, '')
+    .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;|&apos;/g, "'").replace(/&nbsp;/g, ' ')
+    .replace(/[ \t]+/g, ' ').replace(/ ?\n ?/g, '\n').replace(/\n{3,}/g, '\n\n').trim()
+  if (t.length < 40) return null
+  if (t.length <= max) return t
+  const cut = t.slice(0, max)
+  const end = Math.max(cut.lastIndexOf('. '), cut.lastIndexOf('! '), cut.lastIndexOf('? '))
+  return (end > max * 0.6 ? cut.slice(0, end + 1) : cut.replace(/\s+\S*$/, '') + '…').trim()
+}
+
+/** Entre plusieurs résumés d'un même livre : un français d'abord, puis le plus complet. */
+export function bestSynopsis(cands: { text: string; fr: boolean }[]): string | null {
+  const ok = cands.map((c) => ({ fr: c.fr, text: cleanSynopsis(c.text) })).filter((c): c is { fr: boolean; text: string } => !!c.text)
+  ok.sort((a, b) => Number(b.fr) - Number(a.fr) || b.text.length - a.text.length)
+  return ok[0]?.text ?? null
 }
 
 function yearOf(d?: string): number | null {
@@ -179,7 +201,7 @@ const workKey = (title: string, author: string) => `${fold(title.replace(/[’']
 
 /** Regroupe des volumes (= éditions) en œuvres, puis classe par pertinence pour la recherche. */
 export function groupVolumes(vols: GBVolume[], query: string, keepAll = false): WorkHit[] {
-  const groups = new Map<string, { title: string; author: string; cats: string[]; eds: EditionHit[]; rank: number; fr: boolean }>()
+  const groups = new Map<string, { title: string; author: string; cats: string[]; eds: EditionHit[]; rank: number; fr: boolean; descs: { text: string; fr: boolean }[] }>()
   vols.forEach((v, rank) => {
     const e = editionOf(v)
     if (!e) return
@@ -187,12 +209,13 @@ export function groupVolumes(vols: GBVolume[], query: string, keepAll = false): 
     const author = v.volumeInfo!.authors?.[0]?.trim() ?? ''
     const k = workKey(title, author)
     const g = groups.get(k)
+    const desc = v.volumeInfo!.description ? [{ text: v.volumeInfo!.description, fr: e.language === 'fre' }] : []
     if (g) {
-      g.eds.push(e); g.cats.push(...(v.volumeInfo!.categories ?? []))
+      g.eds.push(e); g.cats.push(...(v.volumeInfo!.categories ?? [])); g.descs.push(...desc)
       // Le titre affiché est celui d'une édition française quand il y en a une.
       if (!g.fr && e.language === 'fre') { g.title = title; g.fr = true }
       g.rank = Math.min(g.rank, rank)
-    } else groups.set(k, { title, author, cats: [...(v.volumeInfo!.categories ?? [])], eds: [e], rank, fr: e.language === 'fre' })
+    } else groups.set(k, { title, author, cats: [...(v.volumeInfo!.categories ?? [])], eds: [e], rank, fr: e.language === 'fre', descs: desc })
   })
   const scored = [...groups.values()].map((g) => {
     const eds = sortEditions(dedupeEditions(g.eds))
@@ -208,6 +231,7 @@ export function groupVolumes(vols: GBVolume[], query: string, keepAll = false): 
       genres,
       pages: primary.pages,
       coverUrl: primary.coverUrl ?? eds.find((e) => e.coverUrl)?.coverUrl ?? null,
+      description: bestSynopsis(g.descs),
       editionCount: eds.length,
       editions: eds,
       primary,
@@ -235,6 +259,7 @@ export function mergeHits(main: WorkHit[], ol: WorkHit[], query: string): WorkHi
       g.editionCount = Math.max(g.editionCount, o.editionCount)
       g.year = o.year ?? g.year // Open Library connaît mieux la date de première parution
       if (!g.coverUrl) g.coverUrl = o.coverUrl
+      if (!g.description) g.description = o.description ?? null
     } else extra.push(o)
   }
   const rel = (h: WorkHit) => relevance(query, h.title, h.author)
@@ -245,7 +270,7 @@ export function mergeHits(main: WorkHit[], ol: WorkHit[], query: string): WorkHi
 
 /* ---------- réseau ---------- */
 
-interface ServerResult { google: GBVolume[]; bnf: GBVolume[]; errors?: string[]; keyed?: boolean }
+interface ServerResult { google: GBVolume[]; bnf: GBVolume[]; errors?: string[]; keyed?: boolean; synopsis?: string | null }
 
 /** Appelle la fonction serveur ; `null` si elle est injoignable (l'appli bascule alors sur Google en direct). */
 async function viaServer(body: Record<string, string>): Promise<ServerResult | null> {
@@ -316,6 +341,14 @@ export async function searchBooks(q: string): Promise<WorkHit[]> {
 }
 
 /** Éditions d'une œuvre déjà choisie ou déjà dans la bibliothèque : Open Library (si on a l'identifiant), Google et BnF. */
+/** Cherche le résumé d'un livre précis (par ISBN puis par titre et auteur). `null` si aucune source n'en a. */
+export async function synopsisFor(w: { title: string; author: string; isbn?: string | null }): Promise<string | null> {
+  const body: Record<string, string> = { synopsis: '1', title: w.title, author: w.author }
+  if (w.isbn) body.isbn = w.isbn
+  const r = await viaServer(body)
+  return cleanSynopsis(r?.synopsis)
+}
+
 export async function editionsFor(w: { title: string; author: string; olWorkId: string | null; known?: EditionHit[] }): Promise<EditionHit[]> {
   const k = workKey(w.title, w.author)
   const sameWork = (x: GBVolume) => !!x.volumeInfo?.title && (workKey(cleanTitle(x.volumeInfo.title), x.volumeInfo.authors?.[0] ?? '') === k || workKey(cleanTitle(x.volumeInfo.title), '') === workKey(w.title, ''))

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { dedupeEditions, groupVolumes, guessFormat, isbn10to13, isIsbnQuery, mergeHits, relevance, tokenMatches, tokens, validEan13, type GBVolume } from './booksearch'
+import { bestSynopsis, cleanSynopsis, dedupeEditions, groupVolumes, guessFormat, isbn10to13, isIsbnQuery, mergeHits, relevance, tokenMatches, tokens, validEan13, type GBVolume } from './booksearch'
 import type { WorkHit } from '../types'
 
 const vol = (title: string, authors: string[], extra: Partial<NonNullable<GBVolume['volumeInfo']>> = {}): GBVolume => ({
@@ -145,5 +145,33 @@ describe('recherche tolérante', () => {
   it('contrôle la clé d’un code-barres EAN-13', () => {
     expect(validEan13('9782070360024')).toBe(true)
     expect(validEan13('9782070360025')).toBe(false)
+  })
+})
+
+describe('résumés', () => {
+  it('nettoie le HTML et rejette les textes trop courts', () => {
+    expect(cleanSynopsis('<p>Un homme <b>seul</b> face à la mer &amp; au temps, pendant vingt jours.</p><p>Suite.</p>')).toBe('Un homme seul face à la mer & au temps, pendant vingt jours.\nSuite.')
+    expect(cleanSynopsis('Trop court')).toBeNull()
+    expect(cleanSynopsis(null)).toBeNull()
+  })
+  it('coupe un long résumé à la fin d’une phrase', () => {
+    const long = 'Une phrase assez longue pour compter. '.repeat(80)
+    const r = cleanSynopsis(long, 500)!
+    expect(r.length).toBeLessThanOrEqual(500)
+    expect(r.endsWith('.')).toBe(true)
+  })
+  it('préfère un résumé français, puis le plus complet', () => {
+    const en = 'An English blurb that is quite a bit longer than the French one, with many more words in it overall.'
+    const fr = 'Un résumé français plus court mais dans la bonne langue pour le lecteur.'
+    expect(bestSynopsis([{ text: en, fr: false }, { text: fr, fr: true }])).toBe(fr)
+    expect(bestSynopsis([{ text: 'court', fr: true }])).toBeNull()
+  })
+  it('groupVolumes remonte le résumé de l’édition française', () => {
+    const vols: GBVolume[] = [
+      { id: 'a', volumeInfo: { title: 'Cornes', authors: ['Joe Hill'], language: 'en', description: 'A man wakes up with horns growing from his forehead and everyone confesses to him.' } },
+      { id: 'b', volumeInfo: { title: 'Cornes', authors: ['Joe Hill'], language: 'fr', publisher: "J'ai lu", pageCount: 510, description: '<p>Ig Perrish se réveille avec des cornes : chacun lui avoue ses secrets.</p>' } },
+    ]
+    const hits = groupVolumes(vols, 'cornes joe hill')
+    expect(hits[0].description).toBe('Ig Perrish se réveille avec des cornes : chacun lui avoue ses secrets.')
   })
 })

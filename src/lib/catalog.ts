@@ -1,5 +1,5 @@
 /* Sélection éditoriale pour « Découvrir » : titres courts d'abord. Pages approximatives (poche). */
-export interface CatalogBook { id: string; title: string; author: string; pages: number; genre: string; tags: string; pitch: string }
+export interface CatalogBook { id: string; title: string; author: string; pages: number; genre: string; tags: string; pitch: string; resume?: string }
 type Row = [string, string, string, number, string, string, string]
 const ROWS: Row[] = [
   ['matin','Matin brun','Franck Pavloff',12,'Roman','court','Une dizaine de pages. Fini avant que ton café refroidisse.'],
@@ -40,4 +40,42 @@ const ROWS: Row[] = [
   ['quebert','La Vérité sur l’affaire Harry Quebert','Joël Dicker',860,'Polar','','Un page-turner au sens strict.'],
   ['monte','Le Comte de Monte-Cristo','Alexandre Dumas',1400,'Roman','classique','Long, oui. Mais écrit en feuilleton : chaque chapitre relance.']
 ]
-export const CATALOG: CatalogBook[] = ROWS.map(([id, title, author, pages, genre, tags, pitch]) => ({ id, title, author, pages, genre, tags, pitch }))
+/** Résumés rédigés pour la sélection, sans dévoiler la fin. Les titres absents gardent leur accroche, puis le résumé trouvé par la recherche. */
+const RESUMES: Record<string, string> = {
+  matin: 'Deux amis discutent dans un café pendant que l’État décide, sans bruit, que les chats et les chiens qui ne sont pas bruns doivent disparaître. Pour rester tranquilles, ils s’y plient, puis plient encore. Une nouvelle sur la façon dont on s’habitue à tout.',
+  horla: 'Un homme tient son journal et sent peu à peu une présence invisible s’installer chez lui : elle boit son eau, lui vole sa volonté. Il oscille entre peur et lucidité, jusqu’à une décision radicale pour s’en libérer.',
+  novecento: 'Un nourrisson est abandonné sur un paquebot transatlantique en 1900. Il y grandit, devient un pianiste prodigieux et ne met jamais le pied à terre. Son ami trompettiste raconte, entre humour et vertige.',
+  inconnu: 'De 1932 à 1934, deux associés et amis s’écrivent : l’un est retourné vivre en Allemagne, l’autre est resté à San Francisco. À mesure que le nazisme monte, leurs lettres changent de ton, et l’amitié aussi.',
+  prince: 'Un aviateur en panne dans le désert rencontre un petit garçon venu d’une autre planète. Celui-ci lui raconte ses voyages, sa rose, et ce qu’il a compris des grandes personnes.',
+  metamorphose: 'Gregor Samsa, voyageur de commerce qui fait vivre sa famille, se réveille transformé en énorme insecte. Le récit suit surtout la manière dont les siens réagissent, et ce que devient leur attachement.',
+  vieil: 'Santiago, vieux pêcheur cubain malchanceux depuis plus de quatre-vingts jours, part seul au large et accroche un marlin gigantesque. Commence un combat de plusieurs jours, fait d’endurance, de solitude et de respect pour l’adversaire.',
+  ferme: 'Les animaux d’une ferme chassent leur fermier et organisent eux-mêmes la vie commune, avec des règles égales pour tous. Peu à peu, les cochons qui dirigent se donnent des privilèges. Une fable politique très courte.',
+  souris: 'George et Lennie, ouvriers agricoles itinérants dans la Californie de la Grande Dépression, rêvent d’un petit bout de terre à eux. Lennie, d’une force énorme et d’un esprit simple, leur attire sans cesse des ennuis.',
+  etranger: 'Meursault, employé à Alger, enterre sa mère sans larmes, puis se laisse porter par les jours : la plage, une liaison, un voisin encombrant. Un geste sous le soleil le conduit devant un tribunal qui juge autant sa manière d’être que son acte.',
+  stupeur: 'Amélie, jeune Belge née au Japon, signe un contrat d’un an dans une grande entreprise de Tokyo. Elle y découvre une hiérarchie si rigide que chaque maladresse la fait descendre d’un cran. Un récit inspiré de l’expérience de l’autrice, drôle et grinçant.',
+  krug: 'Un guide court et très illustré qui défend une idée simple : une page web doit se comprendre sans effort. Il passe en revue la lisibilité, la navigation et les tests utilisateurs rapides, avec beaucoup d’exemples concrets.',
+  dix: 'Dix personnes qui ne se connaissent pas sont invitées sur une île. Une voix enregistrée accuse chacune d’un crime, puis les invités meurent un à un, d’après une comptine accrochée au mur. Le coupable est forcément parmi eux.',
+  f451: 'Dans une société où les livres sont interdits, Montag est pompier : son métier est de les brûler. La rencontre avec une voisine curieuse et ses propres doutes l’amènent à lire en cachette, et à tout risquer.',
+  basker: 'Une légende familiale parle d’un chien monstrueux qui hante la lande du Devon, et Sir Charles Baskerville vient d’y mourir. Holmes et Watson enquêtent pour protéger l’héritier, entre brume, marais et fausses pistes.',
+  arabe: 'Riad Sattouf raconte son enfance, de 1978 à 1984, entre la Libye de Kadhafi, la Syrie de Hafez el-Assad et la campagne bretonne. Son père, arabe et idéaliste, rêve d’un monde moderne ; sa mère, bretonne, suit comme elle peut.',
+  maus: 'Art Spiegelman interroge son père, rescapé d’Auschwitz, et met son histoire en images : les Juifs y sont des souris, les nazis des chats. En parallèle, le livre montre la relation difficile entre un fils et un père.',
+  persepolis: 'Marjane Satrapi raconte son enfance à Téhéran pendant la révolution islamique et la guerre Iran-Irak, puis son adolescence en exil à Vienne et son retour. Une autobiographie en noir et blanc, drôle et sans effets.',
+  algernon: 'Charlie Gordon, adulte à l’intelligence limitée, subit une opération expérimentale déjà testée sur une souris, Algernon. Le roman est son journal, dont l’écriture change à mesure que ses capacités évoluent.',
+  meilleur: 'Dans un État mondial où les humains sont fabriqués en laboratoire et conditionnés au bonheur, un homme élevé dans une « réserve » sauvage débarque et bouscule tout. Une réflexion sur ce qu’on accepte de perdre contre le confort.',
+  norman: 'Pourquoi certaines portes se poussent quand on veut les tirer ? Don Norman explique ce qui rend un objet facile à utiliser ou frustrant : signifiants, modèles mentaux, retour d’information. Un livre de base pour qui conçoit des interfaces.',
+  voeu: 'Geralt de Riv est un sorceleur, chasseur de monstres engagé contre rémunération. Dans ce recueil de nouvelles, il passe de ville en ville, croise des contes de fées revisités et se heurte à des choix où personne n’a vraiment le beau rôle.',
+  1984: 'Winston Smith travaille au Ministère de la Vérité, où il réécrit le passé selon les besoins du Parti, sous l’œil de Big Brother. Il tient un journal secret et vit une relation interdite, dans un monde où penser est déjà un risque.',
+  hobbit: 'Bilbon Sacquet, hobbit casanier, est entraîné par le magicien Gandalf et treize nains dans une expédition pour reprendre un trésor gardé par le dragon Smaug. Le voyage le change plus qu’il ne l’aurait cru.',
+  houris: 'Aube, une jeune femme dont la voix a été brisée par la guerre civile algérienne des années 1990, s’adresse à l’enfant qu’elle porte. Un roman sur la mémoire de cette décennie noire, longtemps passée sous silence.',
+  belami: 'Georges Duroy, ancien sous-officier sans le sou, monte dans le Paris de la Troisième République grâce à la presse et aux femmes qui l’aident. Il avance sans scrupules, et la société qu’il traverse n’en demande pas davantage.',
+  hailmary: 'Ryland Grace se réveille seul dans un vaisseau spatial, sans souvenir de sa mission. Peu à peu, il comprend qu’il doit résoudre un problème scientifique dont dépend la survie de la Terre, menacée par ce qui affaiblit le Soleil.',
+  sapiens: 'Une histoire de l’espèce humaine, des premiers Homo sapiens à aujourd’hui : révolution cognitive, agricole, scientifique. L’auteur montre comment des fictions partagées, comme les religions, les nations ou l’argent, permettent de coopérer à grande échelle.',
+  veiller: 'Dans l’Italie de la première moitié du XXe siècle, Mimo, un petit homme devenu sculpteur, aime Viola, héritière d’une grande famille. Un roman sur la fidélité d’un amour qui traverse les décennies.',
+  horde: 'Vingt-trois hommes et femmes, chacun spécialiste d’un rôle, marchent face au vent pour atteindre la source de celui-ci, au bout d’un monde balayé par des tempêtes. Un roman d’aventure qui joue sans cesse avec la langue.',
+  nomvent: 'Kvothe, aubergiste discret, accepte de raconter à un chroniqueur la véritable histoire de sa vie : une enfance dans une troupe d’artistes itinérants, un drame, puis ses années à l’Université où l’on enseigne la magie.',
+  dune: 'Arrakis est une planète désertique, seule source de l’épice, la ressource la plus précieuse de l’univers. Quand la maison Atréides en reçoit le gouvernement, un piège se referme, et le jeune Paul doit survivre parmi les Fremen.',
+  quebert: 'Marcus Goldman, jeune écrivain en panne d’inspiration, apprend que son ancien professeur Harry Quebert est accusé du meurtre d’une adolescente disparue trente-trois ans plus tôt. Il mène l’enquête pour le défendre.',
+  monte: 'Edmond Dantès, jeune marin sur le point de se marier, est victime d’une dénonciation et enfermé au château d’If. Après son évasion, il revient sous une autre identité pour préparer sa vengeance, avec patience.',
+}
+
+export const CATALOG: CatalogBook[] = ROWS.map(([id, title, author, pages, genre, tags, pitch]) => ({ id, title, author, pages, genre, tags, pitch, resume: RESUMES[id] }))

@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
-import { getNote, removeBook, saveNote, switchEdition, updateBook } from '../lib/api'
+import { getNote, removeBook, saveNote, saveSynopsis, switchEdition, updateBook } from '../lib/api'
 import { explain } from '../lib/supabase'
 import { pct, STATUS_LABEL, totalOf } from '../lib/logic'
 import { FORMAT_LABEL } from '../lib/openlibrary'
-import { editionsFor } from '../lib/booksearch'
-import { Bar, Cover, coverOf, DlgHead, Err, Modal, Pill, useToast } from '../lib/ui'
+import { editionsFor, synopsisFor } from '../lib/booksearch'
+import { Bar, Cover, coverOf, DlgHead, Err, Modal, Pill, Synopsis, useToast } from '../lib/ui'
 import { cropToBlob, removeOwnImage, uploadImage } from '../lib/images'
 import { genresOf } from '../lib/genres'
 import GenrePicker from './GenrePicker'
@@ -27,10 +27,30 @@ export default function BookDialog({ id, onClose, onRead }: { id: string; onClos
   const [coverOpen, setCoverOpen] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [editGenres, setEditGenres] = useState(false)
+  const [synLoading, setSynLoading] = useState(false)
+  const [synMissing, setSynMissing] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => { void getNote(id).then((n) => { setNote(n); setNoteLoaded(true) }).catch(() => setNoteLoaded(true)) }, [id])
   useEffect(() => { if (b) setPage(b.page) }, [b?.page]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Livre sans résumé en base : on le cherche une fois, puis on le range pour tout le monde.
+  const needSyn = !!b && !b.work.synopsis
+  useEffect(() => {
+    if (!b || b.work.synopsis) return
+    let live = true
+    setSynLoading(true); setSynMissing(false)
+    void (async () => {
+      const text = await synopsisFor({ title: b.work.title, author: b.work.author, isbn: b.edition?.isbn13 })
+      if (!live) return
+      if (!text) { setSynMissing(true); setSynLoading(false); return }
+      const kept = await saveSynopsis(b.work_id, text).catch(() => null)
+      if (!live) return
+      st.setBook({ ...b, work: { ...b.work, synopsis: kept ?? text } })
+      setSynLoading(false)
+    })()
+    return () => { live = false }
+  }, [id, needSyn]) // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!b) return null
   const total = totalOf(b)
@@ -175,6 +195,13 @@ export default function BookDialog({ id, onClose, onRead }: { id: string; onClos
           ))}
         </div>
       </div>
+
+      {(b.work.synopsis || synLoading || synMissing) && (
+        <div className="stack" style={{ gap: 6 }}>
+          <h3>Résumé</h3>
+          <Synopsis text={b.work.synopsis} loading={synLoading} empty="Aucun résumé trouvé pour ce livre." />
+        </div>
+      )}
 
       <label className="field">Note personnelle (visible par toi seul)
         <textarea value={note} onChange={(e) => setNote(e.target.value)} onBlur={commitNote} disabled={!noteLoaded} placeholder="Ce qui t’a marqué, ce qui t’a lassé…" maxLength={5000} />

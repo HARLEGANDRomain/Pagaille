@@ -5,7 +5,7 @@ import { norm, STATUS_LABEL } from '../lib/logic'
 import { DEFAULT_GENRE, upgradeGenre } from '../lib/genres'
 import { FORMAT_LABEL } from '../lib/openlibrary'
 import { editionsFor, searchBooks } from '../lib/booksearch'
-import { DlgHead, Err, Modal, useToast } from '../lib/ui'
+import { DlgHead, Err, Modal, Synopsis, useToast } from '../lib/ui'
 import { useStore } from '../lib/store'
 import GenrePicker from './GenrePicker'
 import Scanner, { canScan } from './Scanner'
@@ -124,7 +124,7 @@ export default function AddBook({ onClose, initial }: { onClose: () => void; ini
     setBusy(true); setError('')
     try {
       const b = await addBook(st.uid, {
-        work: { olWorkId: pick?.olWorkId ?? null, title, author, genre: g[0], year: pick?.year ?? null },
+        work: { olWorkId: pick?.olWorkId ?? null, title, author, genre: g[0], year: pick?.year ?? null, description },
         edition, pages: n, status, genres: g,
       })
       st.setBook(b)
@@ -138,6 +138,8 @@ export default function AddBook({ onClose, initial }: { onClose: () => void; ini
   }
 
   const editing = pick || manual
+  // Livre choisi dans la recherche : son résumé ; saisie à la main depuis Découvrir : celui de la carte, tant que le titre n'a pas changé.
+  const description = pick ? pick.description ?? null : title.trim() === initial?.title ? initial?.description ?? null : null
   const fromSearch = !!(pick && (pick.olWorkId || pick.editions?.length))
 
   return (
@@ -184,6 +186,7 @@ export default function AddBook({ onClose, initial }: { onClose: () => void; ini
               </div>
             </div>
           )}
+          {description && <Synopsis text={description} lines={4} />}
           {!pick && <label className="field">Titre<input value={title} onChange={(e) => setTitle(e.target.value)} autoFocus /></label>}
           <div className="two">
             {!pick && <label className="field">Auteur<input value={author} onChange={(e) => setAuthor(e.target.value)} /></label>}

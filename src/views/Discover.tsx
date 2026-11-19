@@ -3,16 +3,16 @@ import { CATALOG, type CatalogBook } from '../lib/catalog'
 import { norm } from '../lib/logic'
 import { GENRE_FAMILIES, GOOGLE_SUBJECT, short, upgradeGenre } from '../lib/genres'
 import { booksForSubject, relevance, searchBooks } from '../lib/booksearch'
-import { Cover } from '../lib/ui'
+import { Cover, Synopsis } from '../lib/ui'
 import { useStore } from '../lib/store'
 import type { WorkHit } from '../types'
 
 /* Découvrir : une sélection éditoriale (du moment, classiques) et des livres dans tes goûts.
    Chaque livre est retrouvé dans les catalogues pour afficher sa vraie couverture française et l'ajouter avec son édition. */
 
-export type DiscoverPick = { title: string; author: string; pages: number | null; genre: string; hit?: WorkHit }
+export type DiscoverPick = { title: string; author: string; pages: number | null; genre: string; hit?: WorkHit; description?: string | null }
 
-const CACHE = 'pagaille.discover.v2'
+const CACHE = 'pagaille.discover.v3'
 const loadCache = (): Record<string, WorkHit | null> => { try { return JSON.parse(localStorage.getItem(CACHE) ?? '{}') } catch { return {} } }
 const saveCache = (c: Record<string, WorkHit | null>) => { try { localStorage.setItem(CACHE, JSON.stringify(c)) } catch { /* plein */ } }
 
@@ -43,13 +43,13 @@ function useResolved(books: CatalogBook[]) {
   return map
 }
 
-function Card({ title, author, pages, pitch, hit, onPick }: { title: string; author: string; pages?: number | null; pitch?: string; hit?: WorkHit | null; onPick: () => void }) {
+function Card({ title, author, pages, pitch, resume, hit, onPick }: { title: string; author: string; pages?: number | null; pitch?: string; resume?: string; hit?: WorkHit | null; onPick: () => void }) {
   const p = hit?.primary?.pages ?? hit?.pages ?? pages
   return (
     <div className="rec">
       <Cover title={title} author={author} url={hit?.coverUrl} onClick={onPick} />
       <div><b className="bk">{title}</b><br /><span className="muted small">{author}{p ? `, ${p} p.` : ''}</span></div>
-      {pitch && <p className="muted">{pitch}</p>}
+      <Synopsis text={resume || hit?.description || pitch} lines={4} />
       <div><button className="btn sm" onClick={onPick}>Ajouter à ma pile</button></div>
     </div>
   )
@@ -109,7 +109,11 @@ export default function Discover({ onPick }: { onPick: (p: DiscoverPick) => void
     await st.patchProfile({ tastes: next })
   }
 
-  const pickCat = (c: CatalogBook) => onPick({ title: c.title, author: c.author, pages: c.pages || null, genre: upgradeGenre(c.genre), hit: resolved[c.id] ?? undefined })
+  const pickCat = (c: CatalogBook) => {
+    const hit = resolved[c.id] ?? undefined
+    // Le résumé affiché sur la carte est celui qui sera rangé avec le livre.
+    onPick({ title: c.title, author: c.author, pages: c.pages || null, genre: upgradeGenre(c.genre), hit: hit ? { ...hit, description: c.resume ?? hit.description } : undefined, description: c.resume ?? hit?.description })
+  }
 
   const Sec = ({ h, p, arr, more = [] }: { h: string; p: string; arr: CatalogBook[]; more?: WorkHit[] }) =>
     arr.length || more.length ? (
@@ -117,7 +121,7 @@ export default function Discover({ onPick }: { onPick: (p: DiscoverPick) => void
         <h2>{h}</h2>
         {p && <p className="muted small" style={{ margin: '4px 0 18px', maxWidth: '60ch' }}>{p}</p>}
         <div className="grid">
-          {arr.map((c) => <Card key={c.id} title={c.title} author={c.author} pages={c.pages} pitch={c.pitch} hit={resolved[c.id]} onPick={() => pickCat(c)} />)}
+          {arr.map((c) => <Card key={c.id} title={c.title} author={c.author} pages={c.pages} pitch={c.pitch} resume={c.resume} hit={resolved[c.id]} onPick={() => pickCat(c)} />)}
           {more.map((h) => <Card key={h.title + h.author} title={h.title} author={h.author} hit={h} onPick={() => onPick({ title: h.title, author: h.author, pages: h.pages, genre: h.genre, hit: h })} />)}
         </div>
       </section>

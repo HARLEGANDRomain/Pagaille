@@ -6,6 +6,8 @@ export interface Work {
   author: string
   genre: string
   ol_work_id: string | null
+  /** Résumé (quatrième de couverture), rempli à la première lecture d'un livre. */
+  synopsis?: string | null
 }
 
 export interface Edition {
@@ -120,6 +122,8 @@ export interface WorkHit {
   genres?: string[]
   pages: number | null
   coverUrl: string | null
+  /** Résumé de l'éditeur, quand une source le fournit. */
+  description?: string | null
   editionCount: number
   /** Éditions déjà connues (Google Books les renvoie avec la recherche) et celle mise en avant. */
   editions?: EditionHit[]

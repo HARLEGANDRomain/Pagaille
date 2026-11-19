@@ -17,7 +17,7 @@ const db = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SE
 
 type Vol = { id?: string; volumeInfo: Record<string, unknown> }
 
-const fold = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, ' ').trim()
+const fold = (s: string) => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, ' ').trim()
 
 async function cached<T>(k: string, days: number, f: () => Promise<T>): Promise<T> {
   const { data } = await db.from('book_cache').select('body, created_at').eq('k', k).maybeSingle()
@@ -34,13 +34,26 @@ async function fetchT(url: string, ms = 7000): Promise<Response> {
 }
 
 /* ---------- Google Books ---------- */
-const GB_FIELDS = 'items(id,volumeInfo(title,subtitle,authors,publisher,publishedDate,pageCount,industryIdentifiers,imageLinks/thumbnail,language,categories))'
+const GB_FIELDS = 'items(id,volumeInfo(title,subtitle,authors,publisher,publishedDate,pageCount,industryIdentifiers,imageLinks/thumbnail,language,categories,description))'
 async function google(params: string): Promise<Vol[]> {
   const url = `https://www.googleapis.com/books/v1/volumes?${params}&printType=books&maxResults=40&fields=${encodeURIComponent(GB_FIELDS)}${KEY ? `&key=${KEY}` : ''}`
   const r = await fetchT(url)
   if (!r.ok) throw new Error(`google ${r.status}`)
   const j = await r.json() as { items?: Vol[] }
-  return j.items ?? []
+  const items = j.items ?? []
+  // On allège la réponse : résumé nettoyé du HTML et plafonné.
+  for (const v of items) if (typeof v.volumeInfo.description === 'string') v.volumeInfo.description = cleanDesc(v.volumeInfo.description, 1500)
+  return items
+}
+
+/** Texte de présentation d'un éditeur : sans balises HTML, espaces propres, coupé proprement. */
+function cleanDesc(raw: string, max: number): string {
+  const t = dec(raw.replace(/<br\s*\/?>/gi, '\n').replace(/<\/(p|div|li)>/gi, '\n').replace(/<[^>]+>/g, ''))
+    .replace(/[ \t]+/g, ' ').replace(/ ?\n ?/g, '\n').replace(/\n{3,}/g, '\n\n').trim()
+  if (t.length <= max) return t
+  const cut = t.slice(0, max)
+  const end = Math.max(cut.lastIndexOf('. '), cut.lastIndexOf('! '), cut.lastIndexOf('? '))
+  return (end > max * 0.6 ? cut.slice(0, end + 1) : cut.replace(/\s+\S*$/, '') + '…').trim()
 }
 
 /* ---------- BnF (SRU, Dublin Core) ---------- */
@@ -150,6 +163,31 @@ async function subject(s: string) {
   return { google: g.items, bnf: [], errors: g.ok ? [] : [g.error] }
 }
 
+/** Résumé d'un livre précis : on cherche par ISBN puis par titre et auteur, on garde le plus complet, de préférence en français.
+    Un échec de Google n'est jamais mis en cache (sinon un « pas de résumé » resterait collé 30 jours). */
+async function synopsis(isbn: string, title: string, author: string): Promise<{ synopsis: string | null }> {
+  const t = fold(title)
+  const k = `syn:${isbn || fold(`${title} ${author}`)}`
+  try {
+    return await cached(k, 30, async () => {
+      let failed = false
+      const vols: Vol[] = []
+      const get = async (params: string) => { try { vols.push(...await google(params)) } catch { failed = true } }
+      if (isbn) await get(`q=isbn:${isbn}`)
+      await get(`q=${encodeURIComponent(`intitle:${title}${author ? ` inauthor:${author}` : ''}`)}&langRestrict=fr`)
+      const good = vols.filter((v) => {
+        const d = v.volumeInfo.description
+        const vt = fold(String(v.volumeInfo.title ?? ''))
+        return typeof d === 'string' && d.length >= 60 && (!t || vt.includes(t) || t.includes(vt))
+      })
+      good.sort((a, b) => (Number(b.volumeInfo.language === 'fr') - Number(a.volumeInfo.language === 'fr')) || String(b.volumeInfo.description).length - String(a.volumeInfo.description).length)
+      const best = good[0]?.volumeInfo.description as string | undefined
+      if (!best && failed) throw new Error('google indisponible')
+      return { synopsis: best ?? null }
+    })
+  } catch { return { synopsis: null } }
+}
+
 /** La passerelle a déjà vérifié la signature du jeton ; on n'accepte que les personnes connectées (pas la clé publique seule). */
 function role(req: Request): string {
   try {
@@ -164,10 +202,11 @@ Deno.serve(async (req) => {
     return new Response(JSON.stringify({ error: 'connexion requise' }), { status: 401, headers: { ...CORS, 'Content-Type': 'application/json' } })
   }
   try {
-    const body = await req.json() as { q?: string; isbn?: string; title?: string; author?: string; subject?: string }
+    const body = await req.json() as { q?: string; isbn?: string; title?: string; author?: string; subject?: string; synopsis?: string }
     const clean = (s?: string) => (s ?? '').trim().slice(0, 200)
     let out
-    if (body.isbn && /^\d{13}$/.test(body.isbn)) out = await byIsbn(body.isbn)
+    if (body.synopsis && body.title) out = await synopsis(/^\d{13}$/.test(body.isbn ?? '') ? body.isbn! : '', clean(body.title), clean(body.author))
+    else if (body.isbn && /^\d{13}$/.test(body.isbn)) out = await byIsbn(body.isbn)
     else if (body.title) out = await editions(clean(body.title), clean(body.author))
     else if (body.subject) out = await subject(clean(body.subject))
     else if (clean(body.q).length >= 2) out = await search(clean(body.q))

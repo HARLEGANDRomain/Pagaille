@@ -16,8 +16,8 @@
 .hits{display:flex;flex-direction:column;gap:6px;max-height:46vh;overflow-y:auto}
 .hit{display:grid;grid-template-columns:44px minmax(0,1fr);gap:12px;align-items:center;text-align:left;border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:8px}
 .hit:hover,.hit[aria-selected="true"]{border-color:var(--ink)}
-.hit .mini{width:44px;aspect-ratio:2/3;border-radius:2px 4px 4px 2px;background:var(--c);display:block;overflow:hidden}
-.hit .mini img{width:100%;height:100%;object-fit:cover;display:block}
+.mini{display:block;flex:none;width:44px;aspect-ratio:2/3;border-radius:2px 4px 4px 2px;background:var(--line);overflow:hidden}
+.mini img{width:100%;height:100%;object-fit:cover;display:block}
 .ed{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 10px;align-items:center;padding:10px 0;border-top:1px solid var(--line);text-align:left;background:none;border-left:0;border-right:0;border-bottom:0;width:100%}
 .ed[aria-pressed="true"]{background:color-mix(in srgb,var(--mark) 22%,transparent)}
 .pres{display:flex;gap:-6px}
@@ -120,3 +120,8 @@ dialog.drawer .chatbox.tall{height:calc(100dvh - 140px)}
 .scan-frame video{width:100%;height:100%;object-fit:cover;display:block}
 .scan-frame i{position:absolute;left:12%;right:12%;top:34%;bottom:34%;border:2px solid var(--mark);border-radius:6px;box-shadow:0 0 0 999px rgba(0,0,0,.35)}
 .shelves{align-items:start;grid-template-columns:repeat(auto-fit,minmax(min(400px,100%),1fr))}
+
+.synopsis{display:flex;flex-direction:column;align-items:flex-start;gap:4px}
+.synopsis p{white-space:pre-line;line-height:1.5;margin:0;overflow-wrap:anywhere}
+.synopsis p.clamp{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:var(--lines,5);overflow:hidden}
+.rec .synopsis p{color:var(--muted,inherit);font-size:.92rem}

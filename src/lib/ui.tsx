@@ -84,6 +84,22 @@ export function coverOf(b: Pick<UserBook, 'custom_cover_url' | 'edition'>): stri
   return b.custom_cover_url || b.edition?.cover_url || (b.edition?.isbn13 ? `https://covers.openlibrary.org/b/isbn/${b.edition.isbn13}-M.jpg?default=false` : null)
 }
 
+/** Résumé d'un livre : replié sur quelques lignes avec « Lire la suite ». */
+export function Synopsis({ text, loading = false, empty, lines = 5 }: { text?: string | null; loading?: boolean; empty?: string; lines?: number }) {
+  const [open, setOpen] = useState(false)
+  if (!text) {
+    if (loading) return <p className="muted small" role="status">Recherche du résumé…</p>
+    return empty ? <p className="muted small">{empty}</p> : null
+  }
+  const long = text.length > lines * 70
+  return (
+    <div className="synopsis">
+      <p className={open || !long ? '' : 'clamp'} style={{ ['--lines' as string]: lines }}>{text}</p>
+      {long && <button type="button" className="btn ghost sm" aria-expanded={open} onClick={() => setOpen(!open)}>{open ? 'Réduire' : 'Lire la suite'}</button>}
+    </div>
+  )
+}
+
 export function Cover({ title, author, url, onClick }: { title: string; author: string; url?: string | null; onClick?: () => void }) {
   const [c, f] = spineColors(title)
   const [bad, setBad] = useState(false)

@@ -132,6 +132,12 @@ export const supabase = {
       db.signet_ledger.push({ id: ++seq, user_id: ME, key: 'buy:' + a.p_item, delta: -pr }); return { data: bal - pr, error: null }
     }
     if (fn === 'equip_item') { const p = db.profiles[0]; p.equipped = { ...p.equipped, [String(a.p_item).split('-')[0]]: a.p_item }; return { data: p.equipped, error: null } }
+    if (fn === 'set_work_synopsis') {
+      const w = db.works.find((x) => x.id === a.p_work)
+      if (!w) return { data: null, error: err('œuvre inconnue') }
+      if (!w.synopsis) w.synopsis = String(a.p_text)
+      return { data: w.synopsis, error: null }
+    }
     if (fn === 'circle_feed') return { data: [{ user_book_id: 'x1', user_id: 'u-ines', display_name: 'Inès', work_title: 'Maus', status: 'fini', closed_at: ago(0.2), cheer_count: 2, cheered_by_me: false }], error: null }
     return { data: null, error: err('rpc inconnue ' + fn) }
   },
@@ -152,17 +158,19 @@ export const supabase = {
   removeChannel: async () => {},
   functions: {
     // Recherche hors ligne : deux notices au format de la fonction serveur.
-    invoke: async (_name: string, { body }: { body: Row }) => ({
+    invoke: async (_name: string, { body }: { body: Row }) => body.synopsis
+      ? { data: { synopsis: /fahrenheit|dune|corne/i.test(String(body.title)) ? '<p>Dans un futur où les pompiers brûlent les livres, Montag commence à douter de sa mission.</p><p>Un roman sur la mémoire, la censure et le goût de lire.</p>' : null }, error: null }
+      : {
       data: {
         google: [],
         bnf: String(body.q ?? body.title ?? '').toLowerCase().includes('corne') || body.isbn
-          ? [{ id: 'bnf-1', volumeInfo: { title: 'Cornes', authors: ['Joe Hill'], publisher: "J'ai lu", pageCount: 510, industryIdentifiers: [{ type: 'ISBN_13', identifier: '9782290054345' }], language: 'fr', source: 'bnf', format: 'poche' } },
+          ? [{ id: 'bnf-1', volumeInfo: { title: 'Cornes', authors: ['Joe Hill'], publisher: "J'ai lu", pageCount: 510, industryIdentifiers: [{ type: 'ISBN_13', identifier: '9782290054345' }], language: 'fr', source: 'bnf', format: 'poche', description: '<p>Un matin, Ig Perrish se réveille avec des cornes sur le front : il découvre que chacun lui avoue ses pensées les plus sombres.</p>' } },
              { id: 'bnf-2', volumeInfo: { title: 'Cornes', authors: ['Joe Hill'], publisher: 'J.-C. Lattès', pageCount: 414, industryIdentifiers: [{ type: 'ISBN_13', identifier: '9782709629058' }], language: 'fr', source: 'bnf', format: 'broche' } }]
           : [],
         errors: [],
       },
       error: null,
-    }),
+    },
   },
   storage: {
     from: (_b: string) => ({

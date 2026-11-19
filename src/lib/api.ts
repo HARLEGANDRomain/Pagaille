@@ -29,7 +29,7 @@ export async function listBooks(): Promise<UserBook[]> {
 }
 
 /** Trouve ou crée l'œuvre dans le catalogue partagé (sans doublon). */
-async function ensureWork(w: Pick<WorkHit, 'olWorkId' | 'title' | 'author' | 'genre' | 'year'>, uid: string): Promise<string> {
+async function ensureWork(w: Pick<WorkHit, 'olWorkId' | 'title' | 'author' | 'genre' | 'year' | 'description'>, uid: string): Promise<string> {
   const find = async () => {
     if (w.olWorkId) {
       const r = await supabase.from('works').select('id').eq('ol_work_id', w.olWorkId).maybeSingle()
@@ -52,6 +52,7 @@ async function ensureWork(w: Pick<WorkHit, 'olWorkId' | 'title' | 'author' | 'ge
       genre: w.genre,
       first_published_year: w.year,
       ol_work_id: w.olWorkId,
+      synopsis: w.description ?? null,
       created_by: uid,
     })
     .select('id')
@@ -105,7 +106,7 @@ async function ensureEdition(workId: string, e: EditionHit | null, pages: number
 }
 
 export interface NewBook {
-  work: Pick<WorkHit, 'olWorkId' | 'title' | 'author' | 'genre' | 'year'>
+  work: Pick<WorkHit, 'olWorkId' | 'title' | 'author' | 'genre' | 'year' | 'description'>
   edition: EditionHit | null
   pages: number | null
   status: Status
@@ -128,7 +129,18 @@ export async function addBook(uid: string, b: NewBook): Promise<UserBook> {
     })
     .select(BOOK_SELECT)
     .single()
-  return ok(r) as UserBook
+  const book = ok(r) as UserBook
+  // Œuvre déjà connue mais sans résumé : on range celui qu'on vient de trouver.
+  if (b.work.description && !book.work.synopsis) {
+    const s = await saveSynopsis(book.work_id, b.work.description).catch(() => null)
+    if (s) book.work = { ...book.work, synopsis: s }
+  }
+  return book
+}
+
+/** Range un résumé sur l'œuvre, seulement s'il n'en a pas encore ; renvoie celui qui fait foi. */
+export async function saveSynopsis(workId: string, text: string): Promise<string | null> {
+  return ok(await supabase.rpc('set_work_synopsis', { p_work: workId, p_text: text })) as string | null
 }
 
 export async function updateBook(id: string, patch: Partial<Pick<UserBook, 'status' | 'page' | 'rating' | 'total_pages' | 'custom_cover_url' | 'genres'>>) {
