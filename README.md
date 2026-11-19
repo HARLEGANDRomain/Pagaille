@@ -25,5 +25,14 @@ Mettre le contenu de `dist/` sur GitHub Pages, Netlify ou Vercel (le build utili
 ## Installer sur Android
 Ouvrir l'URL dans Chrome → menu ⋮ → « Installer l'application ».
 
+## Recherche de livres (fonction serveur `books`)
+La recherche passe par une fonction Supabase (`supabase/functions/books`) qui interroge Google Books **avec la clé du projet** et le catalogue de la BnF, et garde les réponses en cache (table `book_cache`).
+Sans clé, Google refuse presque toutes les requêtes (quota anonyme partagé par tout le monde) : la recherche ne s'appuie alors que sur la BnF et Open Library.
+La clé se range dans Supabase → Edge Functions → Secrets, sous le nom `GOOGLE_BOOKS_KEY`. Elle n'apparaît jamais dans l'appli.
+
+## Garder la base éveillée
+L'offre gratuite de Supabase met le projet en pause après 7 jours sans activité. Le workflow `.github/workflows/keepalive.yml` appelle la fonction `ping()` tous les 3 jours.
+GitHub suspend les tâches planifiées d'un dépôt sans aucun commit pendant 60 jours : relance-la depuis l'onglet Actions si ça arrive.
+
 ## Dossier `dev/`
-Scripts de test (mock Supabase, e2e Chrome headless). Non nécessaires à la production. `MOCK=1 npx vite build --outDir dist-mock` construit la version mock.
+Scripts de test (mock Supabase, e2e Chrome headless). Non nécessaires à la production. `MOCK=1 npx vite build --outDir dist-mock` construit la version mock ; `dev/e2e.mjs` et `dev/e2e2.mjs` (v2 : grand écran, étagères, recherche, couvertures, boutique, discussion) la testent dans Chrome headless.

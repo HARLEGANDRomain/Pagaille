@@ -1,7 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { explain } from '../lib/supabase'
-import { hash, norm, pct, plural, SPINES, STATUS_LABEL, totalOf } from '../lib/logic'
-import { Bar, Pill, Spine, useToast } from '../lib/ui'
+import { hash, norm, pct, plural, SPINES, spineColors, STATUS_LABEL, totalOf } from '../lib/logic'
+import { genresOf, GENRES, short } from '../lib/genres'
+import { equippedItem, OBJ_SVG } from '../lib/cosmetics'
+import { Bar, Pill, Spine, spineWidth, useToast } from '../lib/ui'
 import { useStore } from '../lib/store'
 import type { Status, UserBook } from '../types'
 
@@ -20,6 +22,66 @@ const SORTERS: Record<string, (a: UserBook, b: UserBook) => number> = {
   avance: (a, b) => pct(b) - pct(a),
   note: (a, b) => (b.rating ?? 0) - (a.rating ?? 0),
   couleur: (a, b) => (hash(a.work.title) % SPINES.length) - (hash(b.work.title) % SPINES.length),
+  genre: (a, b) => genresOf(a)[0].localeCompare(genresOf(b)[0], 'fr') || a.work.title.localeCompare(b.work.title, 'fr'),
+}
+
+const GAP = 3, PAD = 24, OBJ_W = 76, MORE_W = 74, MAX_ROWS = 2
+
+/** Répartit les tranches en rangées qui tiennent dans la largeur (mesurée), comme les planches d'une vraie bibliothèque. */
+export function splitRows(widths: number[], avail: number, firstReserve = 0): number[][] {
+  const rows: number[][] = [[]]
+  let used = firstReserve
+  widths.forEach((w, i) => {
+    const row = rows[rows.length - 1]
+    if (row.length && used + w > avail) { rows.push([i]); used = w + GAP }
+    else { row.push(i); used += w + GAP }
+  })
+  return rows
+}
+
+/* Une étagère : autant de planches que nécessaire. Au-delà de deux planches, la suite se replie
+   en une petite pile « +N » au bout de la dernière planche ; un clic la déplie. */
+function Shelf({ k, books, empty, obj }: { k: string; books: UserBook[]; empty: string; obj?: string }) {
+  const ref = useRef<HTMLDivElement>(null)
+  const [w, setW] = useState(0)
+  const [open, setOpen] = useState(false)
+  useLayoutEffect(() => {
+    const el = ref.current
+    if (!el) return
+    const ro = new ResizeObserver(([e]) => setW(Math.floor(e.contentRect.width)))
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+  const avail = Math.max(120, w - PAD)
+  const rows = w ? splitRows(books.map(spineWidth), avail, obj ? OBJ_W : 0) : [books.map((_, i) => i)]
+  let shown = open ? rows : rows.slice(0, MAX_ROWS)
+  let hidden: number[] = []
+  if (!open && rows.length > MAX_ROWS) {
+    // Place pour la pile « +N » au bout de la dernière planche visible.
+    const last = [...shown[MAX_ROWS - 1]]
+    const width = (ids: number[]) => ids.reduce((a, i) => a + spineWidth(books[i]) + GAP, 0) + (shown.length === 1 && obj ? OBJ_W : 0)
+    while (last.length > 1 && width(last) + MORE_W > avail) hidden.unshift(last.pop()!)
+    shown = [...shown.slice(0, MAX_ROWS - 1), last]
+    hidden = [...hidden, ...rows.slice(MAX_ROWS).flat()]
+  }
+  return (
+    <div ref={ref} className="shelf-stack">
+      {!books.length && <div className={`shelf ${k}`} data-drop={k}><p className="empty small">{empty}</p>{obj && <span className="obj" aria-hidden="true" dangerouslySetInnerHTML={{ __html: obj }} />}</div>}
+      {shown.map((row, r) => (
+        <div key={r} className={`shelf ${k}`} data-drop={k}>
+          {row.map((i) => <Spine key={books[i].id} b={books[i]} pct={pct(books[i])} />)}
+          {r === shown.length - 1 && hidden.length > 0 && (
+            <button type="button" className="more-pile" onClick={() => setOpen(true)} aria-label={`Afficher les ${hidden.length} autres livres`}>
+              {hidden.slice(0, 5).map((i) => { const [c] = spineColors(books[i].work.title); return <i key={i} style={{ background: c }} /> })}
+              <b>+{hidden.length}</b>
+            </button>
+          )}
+          {r === 0 && obj && <span className="obj" aria-hidden="true" dangerouslySetInnerHTML={{ __html: obj }} />}
+        </div>
+      ))}
+      {open && rows.length > MAX_ROWS && <button type="button" className="btn ghost sm" onClick={() => setOpen(false)} style={{ marginTop: 8 }}>Replier l’étagère</button>}
+    </div>
+  )
 }
 
 export default function Library({ onAdd, onOpen }: { onAdd: () => void; onOpen: (id: string) => void }) {
@@ -29,6 +91,7 @@ export default function Library({ onAdd, onOpen }: { onAdd: () => void; onOpen: 
   const [sort, setSort] = useState('recent')
   const [view, setView] = useState<'tranches' | 'liste'>('tranches')
   const [q, setQ] = useState('')
+  const [genre, setGenre] = useState('')
   const rootRef = useRef<HTMLDivElement>(null)
   const stRef = useRef(st)
   stRef.current = st
@@ -36,9 +99,16 @@ export default function Library({ onAdd, onOpen }: { onAdd: () => void; onOpen: 
   openRef.current = onOpen
 
   const list = useMemo(
-    () => st.books.filter((b) => !q || norm(b.work.title + b.work.author).includes(norm(q))).sort(SORTERS[sort]),
-    [st.books, q, sort],
+    () => st.books
+      .filter((b) => !q || norm(b.work.title + b.work.author).includes(norm(q)))
+      .filter((b) => !genre || genresOf(b).includes(genre))
+      .sort(SORTERS[sort]),
+    [st.books, q, sort, genre],
   )
+  // Seuls les genres présents dans la bibliothèque sont proposés au filtre, dans l'ordre des familles.
+  const presentGenres = useMemo(() => { const set = new Set(st.books.flatMap(genresOf)); return GENRES.filter((g) => set.has(g)) }, [st.books])
+  const objId = equippedItem(st.profile.equipped, 'obj').id
+  const obj = OBJ_SVG[objId]
   const count = (s: Status) => st.books.filter((b) => b.status === s).length
   const aside = count('pause') + count('abandon')
   const fin = count('fini')
@@ -189,8 +259,14 @@ export default function Library({ onAdd, onOpen }: { onAdd: () => void; onOpen: 
         </div>
         <div className="row">
           <input className="search" type="search" placeholder="Chercher un titre, un auteur" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Chercher dans la bibliothèque" style={{ width: 220 }} />
+          {presentGenres.length > 1 && (
+            <select className="search" value={genre} onChange={(e) => setGenre(e.target.value)} aria-label="Filtrer par genre" style={{ width: 'auto' }}>
+              <option value="">Tous les genres</option>
+              {presentGenres.map((g) => <option key={g} value={g}>{short(g)}</option>)}
+            </select>
+          )}
           <select className="search" value={sort} onChange={(e) => setSort(e.target.value)} aria-label="Trier" style={{ width: 'auto' }}>
-            {[['recent', 'Ajout récent'], ['titre', 'Titre'], ['auteur', 'Auteur'], ['avance', 'Avancement'], ['note', 'Note'], ['couleur', 'Couleur']].map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+            {[['recent', 'Ajout récent'], ['titre', 'Titre'], ['auteur', 'Auteur'], ['genre', 'Genre'], ['avance', 'Avancement'], ['note', 'Note'], ['couleur', 'Couleur']].map(([k, l]) => <option key={k} value={k}>{l}</option>)}
           </select>
           <button className="chip" aria-pressed={view === 'liste'} onClick={() => setView(view === 'liste' ? 'tranches' : 'liste')}>Vue liste</button>
         </div>
@@ -207,7 +283,7 @@ export default function Library({ onAdd, onOpen }: { onAdd: () => void; onOpen: 
           {list.filter((b) => filter === 'tous' || b.status === filter).map((b) => (
             <button key={b.id} onClick={() => onOpen(b.id)}>
               <span><b className="bk">{b.work.title}</b><br /><span className="muted small">{b.work.author}</span></span>
-              <span className="hide-s muted small">{b.work.genre}{totalOf(b) ? `, ${totalOf(b)} p.` : ''}</span>
+              <span className="hide-s muted small">{genresOf(b).map(short).join(', ')}{totalOf(b) ? `, ${totalOf(b)} p.` : ''}</span>
               <span><Pill status={b.status} /></span>
               <span className="hide-s">{totalOf(b) && b.status !== 'lire' ? <Bar v={b.page} g={totalOf(b)} /> : null}</span>
               <span className="hide-s stars" aria-label={`${b.rating ?? 0} sur 5`}>{b.rating ? '★'.repeat(b.rating) : ''}</span>
@@ -227,10 +303,8 @@ export default function Library({ onAdd, onOpen }: { onAdd: () => void; onOpen: 
                     <h3>{g.label} <span className="muted num" style={{ fontWeight: 400 }}>{bs.length}</span></h3>
                     {g.key === 'aside' && <span className="muted small">Ils comptent aussi. Un livre abandonné, c’est de la place pour le suivant.</span>}
                   </div>
-                  <div className={`shelf ${g.key}`} data-drop={g.key}>
-                    {bs.map((b) => <Spine key={b.id} b={b} pct={pct(b)} />)}
-                    {!bs.length && <p className="empty small">{q ? 'Rien ne correspond à ta recherche.' : g.key === 'cours' ? 'Rien en cours. Glisse ici un livre de ta pile.' : 'Dépose un livre ici.'}</p>}
-                  </div>
+                  <Shelf k={g.key} books={bs} obj={g.key === 'cours' ? obj : undefined}
+                    empty={q || genre ? 'Rien ne correspond à ta recherche.' : g.key === 'cours' ? 'Rien en cours. Glisse ici un livre de ta pile.' : 'Dépose un livre ici.'} />
                 </div>
               )
             })}

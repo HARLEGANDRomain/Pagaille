@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import * as api from '../lib/api'
-import { explain, supabase } from '../lib/supabase'
+import { explain } from '../lib/supabase'
+import ChatPanel from '../components/ChatPanel'
 import { Avatar, Bar, Err, Modal, DlgHead, Skeleton, useToast } from '../lib/ui'
 import { useStore } from '../lib/store'
 import { dayIdx, plural, STATUS_LABEL } from '../lib/logic'
-import type { Circle, FeedItem, Member, Message, UserBook, WeekStat } from '../types'
+import type { Circle, FeedItem, Member, UserBook, WeekStat } from '../types'
 
 /* ---------- aucun cercle : créer ou rejoindre ---------- */
 function Start() {
@@ -89,51 +90,20 @@ function CircleDetail({ circle, onStart }: { circle: Circle; onStart: (c: Circle
   const [members, setMembers] = useState<Member[]>([])
   const [stats, setStats] = useState<WeekStat[]>([])
   const [feed, setFeed] = useState<FeedItem[]>([])
-  const [msgs, setMsgs] = useState<Message[]>([])
-  const [draft, setDraft] = useState('')
   const [error, setError] = useState('')
-  const [sending, setSending] = useState(false)
   const [friend, setFriend] = useState<Member | null>(null)
   const [loaded, setLoaded] = useState(false)
-  const chatEnd = useRef<HTMLDivElement>(null)
   const nameOf = useCallback((id: string) => members.find((m) => m.user_id === id), [members])
   const owner = members.find((m) => m.user_id === st.uid)?.role === 'owner'
 
   const loadAll = useCallback(async () => {
     try {
-      const [m, s, f, ms] = await Promise.all([api.listMembers(circle.id), api.weekStatsOf(circle.id), api.circleFeed(circle.id), api.listMessages(circle.id)])
-      setMembers(m); setStats(s); setFeed(f); setMsgs(ms); setError('')
+      const [m, s, f] = await Promise.all([api.listMembers(circle.id), api.weekStatsOf(circle.id), api.circleFeed(circle.id)])
+      setMembers(m); setStats(s); setFeed(f); setError('')
     } catch (e) { setError(explain(e)) } finally { setLoaded(true) }
   }, [circle.id])
 
   useEffect(() => { void loadAll() }, [loadAll])
-
-  // Discussion en direct : les nouveaux messages arrivent sans recharger.
-  useEffect(() => {
-    const ch = supabase
-      .channel(`chat:${circle.id}`)
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'circle_messages', filter: `circle_id=eq.${circle.id}` }, (p) => {
-        const m = p.new as Message
-        setMsgs((l) => (l.some((x) => x.id === m.id) ? l : [...l, m]))
-      })
-      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'circle_messages' }, (p) => {
-        const id = (p.old as { id?: number }).id
-        if (id) setMsgs((l) => l.filter((x) => x.id !== id))
-      })
-      .subscribe()
-    return () => { void supabase.removeChannel(ch) }
-  }, [circle.id])
-
-  useEffect(() => { chatEnd.current?.scrollIntoView({ block: 'end' }) }, [msgs.length])
-
-  async function send(e: React.FormEvent) {
-    e.preventDefault()
-    const body = draft.trim()
-    if (!body) return
-    setSending(true)
-    try { await api.sendMessage(st.uid, circle.id, body); setDraft('') }
-    catch (err) { toast(explain(err)) } finally { setSending(false) }
-  }
 
   async function cheer(f: FeedItem) {
     const on = !f.cheered_by_me
@@ -172,7 +142,7 @@ function CircleDetail({ circle, onStart }: { circle: Circle; onStart: (c: Circle
           <h1>{circle.name}</h1>
           <p className="muted" style={{ marginTop: 8, maxWidth: '62ch' }}>Ton cercle de lecture. Pas de classement : on additionne les pages, on ne les compare pas.</p>
         </div>
-        <div className="row">{members.map((m) => <Avatar key={m.user_id} name={m.display_name} color={m.avatar_color} me={m.user_id === st.uid} />)}</div>
+        <div className="row">{members.map((m) => <Avatar key={m.user_id} name={m.display_name} color={m.avatar_color} url={m.avatar_url} me={m.user_id === st.uid} />)}</div>
       </div>
       <Err>{error}</Err>
       <div className="cols">
@@ -183,7 +153,7 @@ function CircleDetail({ circle, onStart }: { circle: Circle; onStart: (c: Circle
             <p className="muted small">{total >= circle.weekly_goal_pages ? 'Objectif du cercle atteint. Bravo à tous.' : `Jour ${days} sur 7. Chaque page de chacun compte pour le groupe.`}</p>
             {stats.map((s) => (
               <div className="member" key={s.user_id} style={{ gridTemplateColumns: 'auto minmax(0,1fr) auto' }}>
-                <Avatar name={s.display_name} color={nameOf(s.user_id)?.avatar_color} me={s.user_id === st.uid} />
+                <Avatar name={s.display_name} color={nameOf(s.user_id)?.avatar_color} url={nameOf(s.user_id)?.avatar_url} me={s.user_id === st.uid} />
                 <div>
                   <b>{s.user_id === st.uid ? `${s.display_name} (toi)` : s.display_name}</b>
                   <div className="muted small num">{plural(s.days, 'jour')} lu{s.days > 1 ? 's' : ''}, {s.minutes} min</div>
@@ -200,7 +170,7 @@ function CircleDetail({ circle, onStart }: { circle: Circle; onStart: (c: Circle
             {!feed.length && <p className="empty">Rien pour l’instant. Le premier livre tranché apparaîtra ici.</p>}
             {feed.map((f) => (
               <div className="member" key={f.user_book_id}>
-                <Avatar name={f.display_name} color={nameOf(f.user_id)?.avatar_color} me={f.user_id === st.uid} />
+                <Avatar name={f.display_name} color={nameOf(f.user_id)?.avatar_color} url={nameOf(f.user_id)?.avatar_url} me={f.user_id === st.uid} />
                 <p className="small"><b>{f.user_id === st.uid ? 'Toi' : f.display_name}</b> {f.status === 'fini' ? 'a terminé' : 'a abandonné'} <i className="bk">{f.work_title}</i></p>
                 <button className="cheer" aria-pressed={f.cheered_by_me} onClick={() => cheer(f)} aria-label={`Bravo, ${f.cheer_count} pour l’instant`}>Bravo{f.cheer_count ? ` · ${f.cheer_count}` : ''}</button>
               </div>
@@ -211,31 +181,14 @@ function CircleDetail({ circle, onStart }: { circle: Circle; onStart: (c: Circle
         <div className="stack" style={{ gap: 24 }}>
           <section className="panel stack">
             <h2>Discussion</h2>
-            <div className="chat" aria-live="polite" role="log">
-              {!msgs.length && <p className="empty small">Personne n’a encore écrit. Lance la discussion.</p>}
-              {msgs.map((m) => {
-                const mine = m.user_id === st.uid
-                const who = nameOf(m.user_id)
-                return (
-                  <div className={`msg${mine ? ' me' : ''}`} key={m.id}>
-                    {!mine && <Avatar name={who?.display_name ?? '?'} color={who?.avatar_color} />}
-                    <p><span className="small" style={{ display: 'block', opacity: 0.75, fontWeight: 700 }}>{mine ? 'Toi' : who?.display_name ?? 'Ancien membre'}</span>{m.body}</p>
-                  </div>
-                )
-              })}
-              <div ref={chatEnd} />
-            </div>
-            <form className="row" onSubmit={send} style={{ flexWrap: 'nowrap' }}>
-              <input className="search" value={draft} onChange={(e) => setDraft(e.target.value)} maxLength={1000} placeholder="Écrire au cercle" aria-label="Ton message" autoComplete="off" />
-              <button className="btn" disabled={sending || !draft.trim()}>Envoyer</button>
-            </form>
+            <ChatPanel circleId={circle.id} />
           </section>
 
           <section className="panel stack">
             <h2>Membres</h2>
             {members.map((m) => (
               <div className="member" key={m.user_id} style={{ borderTop: 0, padding: '6px 0' }}>
-                <Avatar name={m.display_name} color={m.avatar_color} me={m.user_id === st.uid} />
+                <Avatar name={m.display_name} color={m.avatar_color} url={m.avatar_url} me={m.user_id === st.uid} />
                 <span>{m.display_name}{m.role === 'owner' && <span className="muted small"> · propriétaire</span>}</span>
                 {m.user_id !== st.uid && <button className="btn ghost sm" onClick={() => setFriend(m)}>Sa bibliothèque</button>}
               </div>

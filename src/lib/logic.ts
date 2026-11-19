@@ -9,7 +9,7 @@ export const STATUS_LABEL: Record<Status, string> = {
   abandon: 'Abandonné',
 }
 
-export const GENRES = ['Roman', 'SF', 'Fantasy', 'Polar', 'Essai', 'BD', 'Design', 'Fantastique']
+export { GENRES } from './genres'
 
 /* ---------- petits outils ---------- */
 export const clamp = (n: number, a: number, b: number) => Math.max(a, Math.min(b, n))
@@ -193,3 +193,13 @@ export const noteUnlocked = (readerProgress: number, finished: boolean, ratio: n
   finished || readerProgress >= ratio + 0.02
 
 export const escapeLike = (s: string) => s.replace(/[\\%_]/g, (c) => '\\' + c)
+
+/** « 1 h 30 », « 45 minutes », « 2 h » */
+export function fmtMinutes(m: number): string {
+  if (m < 60) return `${m} minute${m > 1 ? 's' : ''}`
+  const h = Math.floor(m / 60), r = m % 60
+  return r ? `${h} h ${String(r).padStart(2, '0')}` : `${h} h`
+}
+
+/** Choix proposés pour le rituel quotidien : petits par défaut, jusqu'à 2 h pour qui veut. */
+export const RITUAL_CHOICES = [5, 10, 15, 20, 30, 45, 60, 90, 120]

@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react'
-import { logSession, missionKey, award, ritualKey, weekStatsOf } from '../lib/api'
+import { missionKey, weekStatsOf } from '../lib/api'
 import { explain } from '../lib/supabase'
 import {
-  DAYS_MISSION, MIN_DAILY_REWARD, fmtCm, hash, iso, nextMark, pct, plural, reached, spineColors, totalOf,
-  weekDates, weekMissions, CM, pileCm, applyPage,
+  DAYS_MISSION, MIN_DAILY_REWARD, fmtCm, fmtMinutes, hash, iso, nextMark, pct, plural, reached, spineColors, totalOf,
+  weekDates, weekMissions, CM, applyPage,
 } from '../lib/logic'
-import { Bar, Cover, DlgHead, Err, Modal, useToast } from '../lib/ui'
+import { Bar, Cover, coverOf, DlgHead, Err, Modal, useToast } from '../lib/ui'
 import { useStore } from '../lib/store'
 import type { UserBook, WeekStat } from '../types'
 
@@ -66,16 +66,13 @@ function QuickLog({ book, onClose }: { book: UserBook; onClose: () => void }) {
     if (!Number.isFinite(m) || m < 1 || m > 720) return setError('Les minutes doivent être entre 1 et 720.')
     setBusy(true); setError('')
     try {
-      const before = st.todayMin
-      const r = await logSession(st.uid, book, { minutes: m, page: page === '' ? null : Number(page) })
-      let ritual = false
-      if (before < st.profile.daily_minutes && before + r.minutes >= st.profile.daily_minutes) ritual = await award(st.uid, ritualKey(), MIN_DAILY_REWARD).catch(() => false)
-      if (r.finished) await award(st.uid, `close:${book.id}:fini`, 30).catch(() => false)
-      toast((r.gained ? `+${r.gained} pages, ta pile gagne ${(r.gained * CM * 10).toFixed(1).replace('.', ',')} mm` : `${r.minutes} minutes notées`) + (ritual ? `. Rituel du jour tenu, +${MIN_DAILY_REWARD} signets` : ''))
-      if (r.finished) toast('Livre terminé, +30 signets.')
-      const m0 = reached(pileCm(st.books)), m1 = reached(pileCm(st.books.map((b) => (b.id === book.id ? r.book : b))))
-      if (m1 && m1 !== m0) toast(`Ta pile dépasse ${m1[1]}.`)
-      await st.reload()
+      const r = await st.recordSession(book, { minutes: m, page: page === '' ? null : Number(page) })
+      if (r.queued) toast('Pas de réseau : ta lecture est gardée sur ton téléphone et sera envoyée au retour de la connexion.')
+      else {
+        toast((r.res.gained ? `+${r.res.gained} pages, ta pile gagne ${(r.res.gained * CM * 10).toFixed(1).replace('.', ',')} mm` : `${r.res.minutes} minutes notées`) + (r.ritual ? `. Rituel du jour tenu, +${MIN_DAILY_REWARD} signets` : ''))
+        if (r.res.finished) toast('Livre terminé, +30 signets.')
+        if (r.mark) toast(`Ta pile dépasse ${r.mark}.`)
+      }
       onClose()
     } catch (err) { setError(explain(err)) } finally { setBusy(false) }
   }
@@ -135,16 +132,18 @@ export default function Today({ onAdd, onOpen, onStart }: { onAdd: () => void; o
         <div>
           <h1>{hello} {profile.display_name}.</h1>
           <p className="muted" style={{ marginTop: 8 }}>
-            {todayMin >= profile.daily_minutes ? `Rituel du jour tenu : ${todayMin} minutes lues.` : todayMin ? `${todayMin} minutes lues aujourd’hui, encore ${profile.daily_minutes - todayMin} pour ton rituel.` : `Ton rituel du jour : ${profile.daily_minutes} minutes. C’est tout.`}
+            {todayMin >= profile.daily_minutes ? `Rituel du jour tenu : ${fmtMinutes(todayMin)} lues.` : todayMin ? `${fmtMinutes(todayMin)} lues aujourd’hui, encore ${fmtMinutes(profile.daily_minutes - todayMin)} pour ton rituel.` : `Ton rituel du jour : ${fmtMinutes(profile.daily_minutes)}. C’est tout.`}
           </p>
+          {st.pendingCount > 0 && <p className="small" role="status" style={{ marginTop: 6 }}>{plural(st.pendingCount, 'lecture')} en attente : envoi automatique au retour du réseau.</p>}
         </div>
+        <a className="wallet-chip" href="#boutique" aria-label={`${st.signets} signets, ouvrir la boutique`}><span className="signet" aria-hidden="true" /> <b className="num">{st.signets}</b> <span className="small">Boutique</span></a>
       </div>
       <div className="cols">
         <div>
           <section>
             {current ? (
               <div className="now">
-                <Cover title={current.work.title} author={current.work.author} url={current.edition?.cover_url} onClick={() => onOpen(current.id)} />
+                <Cover title={current.work.title} author={current.work.author} url={coverOf(current)} onClick={() => onOpen(current.id)} />
                 <div className="stack">
                   <div>
                     <p className="muted small">Lecture en cours</p>
@@ -158,7 +157,7 @@ export default function Today({ onAdd, onOpen, onStart }: { onAdd: () => void; o
                     </div>
                   )}
                   <div className="row">
-                    <button className="btn primary" onClick={() => onStart(current, false)}>Lire {profile.daily_minutes} minutes</button>
+                    <button className="btn primary" onClick={() => onStart(current, false)}>Lire {fmtMinutes(profile.daily_minutes)}</button>
                     <button className="btn" onClick={() => setQuick(true)}>Noter une lecture déjà faite</button>
                   </div>
                   {others.length > 0 && (

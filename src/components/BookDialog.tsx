@@ -1,10 +1,13 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { getNote, removeBook, saveNote, switchEdition, updateBook } from '../lib/api'
 import { explain } from '../lib/supabase'
 import { pct, STATUS_LABEL, totalOf } from '../lib/logic'
 import { FORMAT_LABEL } from '../lib/openlibrary'
 import { editionsFor } from '../lib/booksearch'
-import { Bar, Cover, DlgHead, Err, Modal, Pill, useToast } from '../lib/ui'
+import { Bar, Cover, coverOf, DlgHead, Err, Modal, Pill, useToast } from '../lib/ui'
+import { cropToBlob, removeOwnImage, uploadImage } from '../lib/images'
+import { genresOf } from '../lib/genres'
+import GenrePicker from './GenrePicker'
 import { useStore } from '../lib/store'
 import type { EditionHit, Status, UserBook } from '../types'
 
@@ -21,6 +24,10 @@ export default function BookDialog({ id, onClose, onRead }: { id: string; onClos
   const [eds, setEds] = useState<EditionHit[] | null>(null)
   const [showEds, setShowEds] = useState(false)
   const [confirmDel, setConfirmDel] = useState(false)
+  const [coverOpen, setCoverOpen] = useState(false)
+  const [uploading, setUploading] = useState(false)
+  const [editGenres, setEditGenres] = useState(false)
+  const fileRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => { void getNote(id).then((n) => { setNote(n); setNoteLoaded(true) }).catch(() => setNoteLoaded(true)) }, [id])
   useEffect(() => { if (b) setPage(b.page) }, [b?.page]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -50,11 +57,39 @@ export default function BookDialog({ id, onClose, onRead }: { id: string; onClos
 
   const commitNote = () => run(async () => { await saveNote(st.uid, b.id, note); void st.reload() })
 
-  async function openEditions() {
-    setShowEds(true)
+  async function loadEds() {
     if (eds) return
     try { setEds(await editionsFor({ title: b!.work.title, author: b!.work.author, olWorkId: b!.work.ol_work_id })) } catch { setEds([]) }
   }
+  async function openEditions() { setShowEds(true); await loadEds() }
+  async function openCovers() { setCoverOpen(true); await loadEds() }
+
+  const setCover = (url: string | null) => run(async () => {
+    const old = b.custom_cover_url
+    st.setBook(await updateBook(b.id, { custom_cover_url: url }))
+    if (old && old !== url) void removeOwnImage(old)
+    toast(url ? 'Couverture changée.' : 'Couverture d’origine rétablie.')
+    setCoverOpen(false)
+  })
+
+  async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0]
+    e.target.value = ''
+    if (!f) return
+    setUploading(true)
+    await run(async () => {
+      const blob = await cropToBlob(f, 600, 900)
+      const url = await uploadImage('covers', st.uid, b!.id, blob)
+      const old = b!.custom_cover_url
+      st.setBook(await updateBook(b!.id, { custom_cover_url: url }))
+      if (old) void removeOwnImage(old)
+      toast('Ta photo est maintenant la couverture de ce livre.')
+      setCoverOpen(false)
+    })
+    setUploading(false)
+  }
+
+  const saveGenres = (g: string[]) => run(async () => { st.setBook(await updateBook(b.id, { genres: g })) })
 
   const pick = (e: EditionHit) => run(async () => {
     st.setBook(await switchEdition(st.uid, b, e))
@@ -73,9 +108,12 @@ export default function BookDialog({ id, onClose, onRead }: { id: string; onClos
     <Modal drawer onClose={onClose} title={b.work.title}>
       <DlgHead title={b.work.title} sub={b.work.author} onClose={onClose} />
       <div style={{ display: 'grid', gridTemplateColumns: '120px minmax(0,1fr)', gap: 18 }}>
-        <Cover title={b.work.title} author={b.work.author} url={b.edition?.cover_url} />
+        <div className="stack" style={{ gap: 6 }}>
+          <Cover title={b.work.title} author={b.work.author} url={coverOf(b)} onClick={openCovers} />
+          <button className="btn ghost sm" onClick={openCovers} style={{ padding: '4px 8px' }}>Changer la couverture</button>
+        </div>
         <div className="stack" style={{ gap: 10 }}>
-          <div><Pill status={b.status} /></div>
+          <div className="row" style={{ gap: 6 }}><Pill status={b.status} />{genresOf(b).map((g) => <span key={g} className="pill">{g}</span>)}</div>
           {total > 0 && (
             <>
               <Bar v={page} g={total} />
@@ -85,6 +123,35 @@ export default function BookDialog({ id, onClose, onRead }: { id: string; onClos
           {b.edition && <p className="muted small">{[b.edition.format !== 'autre' ? FORMAT_LABEL[b.edition.format] : null, b.edition.publisher, b.edition.published_year].filter(Boolean).join(', ')}</p>}
         </div>
       </div>
+
+      {coverOpen && (
+        <div className="panel stack" style={{ gap: 10 }}>
+          <div className="row" style={{ justifyContent: 'space-between' }}>
+            <h3>Couverture</h3>
+            <button className="x" onClick={() => setCoverOpen(false)} aria-label="Fermer le choix de couverture">×</button>
+          </div>
+          <p className="muted small">Choisis celle de ton édition, ou prends ton exemplaire en photo.</p>
+          <input ref={fileRef} type="file" accept="image/*" hidden onChange={onFile} />
+          <div className="row">
+            <button className="btn primary sm" disabled={uploading} onClick={() => fileRef.current?.click()}>{uploading ? 'Envoi…' : 'Importer une image'}</button>
+            {b.custom_cover_url && <button className="btn ghost sm" onClick={() => setCover(null)}>Revenir à la couverture d’origine</button>}
+          </div>
+          {!eds && <p className="muted small" role="status">Recherche des couvertures des autres éditions…</p>}
+          {eds && (() => {
+            const seen = new Set<string>()
+            const list = [b.edition?.cover_url, ...eds.map((e) => e.coverUrl)].filter((u): u is string => !!u && !seen.has(u) && !!seen.add(u)).slice(0, 18)
+            return list.length ? (
+              <div className="cover-grid">
+                {list.map((u) => (
+                  <button key={u} className="cover-opt" aria-pressed={coverOf(b) === u} onClick={() => setCover(u === b.edition?.cover_url ? null : u)} aria-label="Choisir cette couverture">
+                    <img src={u} alt="" loading="lazy" onError={(e) => { (e.currentTarget.parentElement as HTMLElement).hidden = true }} onLoad={(e) => { if (e.currentTarget.naturalWidth < 20) (e.currentTarget.parentElement as HTMLElement).hidden = true }} />
+                  </button>
+                ))}
+              </div>
+            ) : <p className="muted small">Aucune autre couverture trouvée. Importe une photo de ton exemplaire.</p>
+          })()}
+        </div>
+      )}
 
       <div className="row" role="group" aria-label="Statut">
         {ORDER.map((s) => <button key={s} className="chip" aria-pressed={b.status === s} onClick={() => move(s)}>{STATUS_LABEL[s]}</button>)}
@@ -112,6 +179,15 @@ export default function BookDialog({ id, onClose, onRead }: { id: string; onClos
       <label className="field">Note personnelle (visible par toi seul)
         <textarea value={note} onChange={(e) => setNote(e.target.value)} onBlur={commitNote} disabled={!noteLoaded} placeholder="Ce qui t’a marqué, ce qui t’a lassé…" maxLength={5000} />
       </label>
+
+      {editGenres ? (
+        <div className="stack" style={{ gap: 6 }}>
+          <GenrePicker value={genresOf(b)} onChange={(g) => void saveGenres(g.length ? g : genresOf(b))} />
+          <div><button className="btn ghost sm" onClick={() => setEditGenres(false)}>Terminé</button></div>
+        </div>
+      ) : (
+        <div><button className="btn ghost sm" onClick={() => setEditGenres(true)}>Modifier les genres</button></div>
+      )}
 
       <div className="stack" style={{ gap: 6 }}>
         <p className="small muted">Ton exemplaire a un autre nombre de pages ?</p>

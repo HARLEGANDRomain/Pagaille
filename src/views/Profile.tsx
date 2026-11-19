@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { explain } from '../lib/supabase'
-import { fmtCm, plural, reached, nextMark } from '../lib/logic'
-import { Err, useToast } from '../lib/ui'
+import { fmtCm, fmtMinutes, plural, reached, nextMark, RITUAL_CHOICES } from '../lib/logic'
+import { cropToBlob, removeOwnImage, uploadImage } from '../lib/images'
+import { Avatar, Err, useToast } from '../lib/ui'
 import { useStore } from '../lib/store'
 
 const COLORS = ['#161D3A', '#7A2333', '#1F4D45', '#1D3F6E', '#C9772B', '#4A2C5E', '#B5423A', '#2A2D3A']
@@ -12,6 +13,8 @@ export default function Profile() {
   const p = st.profile
   const [name, setName] = useState(p.display_name)
   const [error, setError] = useState('')
+  const [uploading, setUploading] = useState(false)
+  const fileRef = useRef<HTMLInputElement>(null)
   const finished = st.books.filter((b) => b.status === 'fini').length
   const pages = st.books.reduce((a, b) => a + b.page, 0)
   const minutes = st.sessions.reduce((a, s) => a + s.minutes, 0)
@@ -22,11 +25,32 @@ export default function Profile() {
     try { await st.patchProfile(patch); if (ok) toast(ok) } catch (e) { setError(explain(e)) }
   }
 
+  async function onPhoto(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0]
+    e.target.value = ''
+    if (!f) return
+    setUploading(true); setError('')
+    try {
+      const url = await uploadImage('avatars', st.uid, 'avatar', await cropToBlob(f, 320, 320))
+      const old = p.avatar_url
+      await st.patchProfile({ avatar_url: url })
+      void removeOwnImage(old)
+      toast('Photo de profil mise à jour.')
+    } catch (err) { setError(explain(err)) } finally { setUploading(false) }
+  }
+  async function removePhoto() {
+    const old = p.avatar_url
+    await save({ avatar_url: null }, 'Photo retirée.')
+    void removeOwnImage(old)
+  }
+  // Une durée déjà enregistrée hors de la liste (ex. 25 min) reste proposée.
+  const ritualChoices = RITUAL_CHOICES.includes(p.daily_minutes) ? RITUAL_CHOICES : [...RITUAL_CHOICES, p.daily_minutes].sort((a, b) => a - b)
+
   return (
     <>
       <div className="head">
         <div className="row" style={{ gap: 18 }}>
-          <span className="avatar lg" style={{ ['--c' as string]: p.avatar_color }} aria-hidden="true">{p.display_name[0]?.toUpperCase()}</span>
+          <Avatar name={p.display_name} color={p.avatar_color} url={p.avatar_url} className="lg" />
           <div><h1>{p.display_name}</h1><p className="muted" style={{ marginTop: 6 }}>{st.email}</p></div>
         </div>
       </div>
@@ -55,7 +79,12 @@ export default function Profile() {
         </div>
       </section>
 
-      <section className="panel stack" style={{ maxWidth: 560 }}>
+      <section className="panel row" style={{ justifyContent: 'space-between', marginBottom: 24 }}>
+        <div><h2>{st.signets} signets</h2><p className="muted small">Gagnés en lisant, à dépenser en étagères, objets et ambiances.</p></div>
+        <a className="btn primary" href="#boutique" style={{ textDecoration: 'none' }}>Ouvrir la boutique</a>
+      </section>
+
+      <section className="panel stack" style={{ maxWidth: 640 }}>
         <h2>Réglages</h2>
         <form className="stack" onSubmit={(e) => { e.preventDefault(); if (name.trim() && name.trim() !== p.display_name) void save({ display_name: name.trim() }, 'Prénom mis à jour.') }}>
           <label className="field">Prénom affiché
@@ -63,6 +92,15 @@ export default function Profile() {
           </label>
           <div><button className="btn sm" disabled={!name.trim() || name.trim() === p.display_name}>Enregistrer</button></div>
         </form>
+        <div className="field">Photo de profil
+          <input ref={fileRef} type="file" accept="image/*" hidden onChange={onPhoto} />
+          <div className="row">
+            <Avatar name={p.display_name} color={p.avatar_color} url={p.avatar_url} size={52} />
+            <button className="btn sm" disabled={uploading} onClick={() => fileRef.current?.click()}>{uploading ? 'Envoi…' : p.avatar_url ? 'Changer la photo' : 'Ajouter une photo'}</button>
+            {p.avatar_url && <button className="btn ghost sm" onClick={() => void removePhoto()}>Retirer</button>}
+          </div>
+          <span className="muted small">Visible par les membres de tes cercles. Sans photo, ton initiale s’affiche sur la couleur choisie.</span>
+        </div>
         <div className="field">Couleur de ton avatar
           <div className="row" role="group" aria-label="Couleur de l’avatar">
             {COLORS.map((c) => (
@@ -74,8 +112,9 @@ export default function Profile() {
         <div className="two">
           <label className="field">Rituel quotidien
             <select value={p.daily_minutes} onChange={(e) => void save({ daily_minutes: Number(e.target.value) })}>
-              {[5, 10, 15, 20, 30].map((n) => <option key={n} value={n}>{n} minutes</option>)}
+              {ritualChoices.map((n) => <option key={n} value={n}>{fmtMinutes(n)}{n === 10 ? ' (conseillé pour démarrer)' : ''}</option>)}
             </select>
+            <span className="muted small">C’est ton minimum pour valider la journée, pas une limite : le chrono continue après, et tout compte. Un petit rituel se tient plus facilement les jours chargés.</span>
           </label>
           <label className="field">Objectif de la semaine
             <select value={p.days_goal} onChange={(e) => void save({ days_goal: Number(e.target.value) })}>

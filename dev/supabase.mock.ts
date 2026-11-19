@@ -10,7 +10,7 @@ const ago = (n: number) => new Date(Date.now() - n * 864e5).toISOString()
 const ME = 'u-me'
 const db: Record<string, Row[]> = {
   profiles: [
-    { id: ME, display_name: 'Romain', avatar_color: '#1D3F6E', tastes: ['SF', 'Design'], daily_minutes: 10, days_goal: 4, share_library: true },
+    { id: ME, display_name: 'Romain', avatar_color: '#1D3F6E', avatar_url: null, tastes: ['Science-fiction', 'Art et design'], daily_minutes: 10, days_goal: 4, share_library: true, equipped: { shelf: 'shelf-chene', obj: 'obj-rien', scene: 'scene-pluie', acc: 'acc-jaune' } },
     { id: 'u-ines', display_name: 'Inès', avatar_color: '#7A2333', tastes: [], daily_minutes: 10, days_goal: 4, share_library: true },
     { id: 'u-malo', display_name: 'Malo', avatar_color: '#1F4D45', tastes: [], daily_minutes: 10, days_goal: 4, share_library: true },
   ],
@@ -46,6 +46,12 @@ for (const [n, m, p] of [[9, 22, 25], [8, 12, 13], [6, 15, 18], [5, 25, 30], [3,
   db.reading_sessions.push({ id: uid(), user_id: ME, user_book_id: db.user_books[0].id, day: day(n), minutes: m, pages_read: p, circle_id: null, created_at: ago(n) })
 db.signet_ledger.push({ id: 1, user_id: ME, key: 'seed', delta: 140 })
 
+// Assez de livres pour remplir une étagère sur plusieurs planches.
+for (let i = 0; i < 26; i++) {
+  db.works.push({ id: 'wx' + i, title: `Livre de test numéro ${i + 1}`, author: 'Auteur ' + i, genre: i % 2 ? 'Polar' : 'Fantasy', ol_work_id: null })
+  ub('wx' + i, null, 'fini', 200 + i * 20, 200 + i * 20, { genres: [i % 2 ? 'Polar' : 'Fantasy'] })
+}
+Object.defineProperty(db, 'owned_items', { get: () => db.signet_ledger.filter((r) => String(r.key).startsWith('buy:')).map((r) => ({ user_id: ME, item_id: String(r.key).slice(4) })) })
 Object.defineProperty(db, 'signet_balance', { get: () => [{ user_id: ME, signets: db.signet_ledger.reduce((a, r) => a + r.delta, 0) }] })
 let seq = 100
 const withJoins = (table: string, r: Row) => {
@@ -119,6 +125,13 @@ export const supabase = {
       return { data: db.circle_members.filter((m) => m.circle_id === a.p_circle).map((m) => { const p = db.profiles.find((x) => x.id === m.user_id)!; const ss = db.reading_sessions.filter((s) => s.user_id === m.user_id && s.day >= w); const fake = m.user_id === ME ? 0 : m.user_id === 'u-ines' ? 62 : 35
         return { user_id: m.user_id, display_name: p.display_name, pages: ss.reduce((x, s) => x + s.pages_read, 0) + fake, minutes: ss.reduce((x, s) => x + s.minutes, 0) + fake, days: new Set(ss.map((s) => s.day)).size + (fake ? 3 : 0) } }), error: null }
     }
+    if (fn === 'buy_item') {
+      const prices: Record<string, number> = { 'shelf-noyer': 120, 'obj-plante': 80, 'scene-etoiles': 150, 'acc-menthe': 100, 'obj-chat': 150 }
+      const bal = db.signet_ledger.reduce((x, r) => x + r.delta, 0), pr = prices[a.p_item] ?? 100
+      if (bal < pr) return { data: null, error: err('Pas assez de signets') }
+      db.signet_ledger.push({ id: ++seq, user_id: ME, key: 'buy:' + a.p_item, delta: -pr }); return { data: bal - pr, error: null }
+    }
+    if (fn === 'equip_item') { const p = db.profiles[0]; p.equipped = { ...p.equipped, [String(a.p_item).split('-')[0]]: a.p_item }; return { data: p.equipped, error: null } }
     if (fn === 'circle_feed') return { data: [{ user_book_id: 'x1', user_id: 'u-ines', display_name: 'Inès', work_title: 'Maus', status: 'fini', closed_at: ago(0.2), cheer_count: 2, cheered_by_me: false }], error: null }
     return { data: null, error: err('rpc inconnue ' + fn) }
   },
@@ -137,4 +150,25 @@ export const supabase = {
     return ch
   },
   removeChannel: async () => {},
+  functions: {
+    // Recherche hors ligne : deux notices au format de la fonction serveur.
+    invoke: async (_name: string, { body }: { body: Row }) => ({
+      data: {
+        google: [],
+        bnf: String(body.q ?? body.title ?? '').toLowerCase().includes('corne') || body.isbn
+          ? [{ id: 'bnf-1', volumeInfo: { title: 'Cornes', authors: ['Joe Hill'], publisher: "J'ai lu", pageCount: 510, industryIdentifiers: [{ type: 'ISBN_13', identifier: '9782290054345' }], language: 'fr', source: 'bnf', format: 'poche' } },
+             { id: 'bnf-2', volumeInfo: { title: 'Cornes', authors: ['Joe Hill'], publisher: 'J.-C. Lattès', pageCount: 414, industryIdentifiers: [{ type: 'ISBN_13', identifier: '9782709629058' }], language: 'fr', source: 'bnf', format: 'broche' } }]
+          : [],
+        errors: [],
+      },
+      error: null,
+    }),
+  },
+  storage: {
+    from: (_b: string) => ({
+      upload: async () => ({ data: {}, error: null }),
+      getPublicUrl: (path: string) => ({ data: { publicUrl: 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="60" height="90"><rect width="60" height="90" fill="#7A2333"/></svg>') + '#' + path } }),
+      remove: async () => ({ data: [], error: null }),
+    }),
+  },
 }

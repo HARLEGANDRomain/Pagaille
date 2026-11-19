@@ -34,6 +34,10 @@ export interface UserBook {
   added_at: string
   started_at: string | null
   closed_at: string | null
+  /** Couverture choisie ou importée pour CET exemplaire (prioritaire sur celle de l'édition). */
+  custom_cover_url?: string | null
+  /** Genres choisis par la personne (3 au plus) ; vide = genre de l'œuvre. */
+  genres?: string[]
   work: Work
   edition: Edition | null
 }
@@ -46,7 +50,11 @@ export interface Profile {
   daily_minutes: number
   days_goal: number
   share_library: boolean
+  avatar_url?: string | null
+  equipped?: Equipped
 }
+
+export interface Equipped { shelf?: string; obj?: string; scene?: string; acc?: string }
 
 export interface SessionRow {
   id: string
@@ -71,6 +79,7 @@ export interface Member {
   role: 'owner' | 'member'
   display_name: string
   avatar_color: string
+  avatar_url?: string | null
 }
 
 export interface Message {
@@ -107,6 +116,8 @@ export interface WorkHit {
   author: string
   year: number | null
   genre: string
+  /** Genres devinés (3 au plus), le premier = `genre`. */
+  genres?: string[]
   pages: number | null
   coverUrl: string | null
   editionCount: number

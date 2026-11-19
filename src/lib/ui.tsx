@@ -79,9 +79,15 @@ export function DlgHead({ title, sub, onClose }: { title: string; sub?: string; 
 }
 
 /* ---------- livres ---------- */
+/** Couverture affichée pour un exemplaire : celle choisie par la personne, sinon celle de l'édition, sinon par l'ISBN. */
+export function coverOf(b: Pick<UserBook, 'custom_cover_url' | 'edition'>): string | null {
+  return b.custom_cover_url || b.edition?.cover_url || (b.edition?.isbn13 ? `https://covers.openlibrary.org/b/isbn/${b.edition.isbn13}-M.jpg?default=false` : null)
+}
+
 export function Cover({ title, author, url, onClick }: { title: string; author: string; url?: string | null; onClick?: () => void }) {
   const [c, f] = spineColors(title)
   const [bad, setBad] = useState(false)
+  useEffect(() => setBad(false), [url])
   return (
     <div className="cover-wrap">
       <button
@@ -99,11 +105,13 @@ export function Cover({ title, author, url, onClick }: { title: string; author: 
   )
 }
 
+/** Épaisseur d'une tranche en pixels : elle suit le nombre de pages. */
+export const spineWidth = (b: Pick<UserBook, 'total_pages' | 'edition'>) => Math.round(clamp(22 + (b.total_pages ?? b.edition?.pages ?? 260) / 24, 24, 60))
+
 export function Spine({ b, pct }: { b: UserBook; pct: number }) {
   const h = hash(b.work.title)
   const [c, f] = spineColors(b.work.title)
-  const pages = b.total_pages ?? b.edition?.pages ?? 260
-  const w = Math.round(clamp(22 + pages / 24, 24, 60))
+  const w = spineWidth(b)
   const ht = 150 + ((h >>> 4) % 58)
   return (
     <button
@@ -127,14 +135,17 @@ export function Bar({ v, g, mark = false }: { v: number; g: number; mark?: boole
   )
 }
 
-export function Avatar({ name, color, me = false, size }: { name: string; color?: string; me?: boolean; size?: number }) {
+export function Avatar({ name, color, url, me = false, size, className = '' }: { name: string; color?: string; url?: string | null; me?: boolean; size?: number; className?: string }) {
+  const [bad, setBad] = useState(false)
+  useEffect(() => setBad(false), [url])
+  const photo = !!url && !bad
   return (
     <span
-      className={`avatar${me ? ' me' : ''}`}
+      className={`avatar${me && !photo ? ' me' : ''}${photo ? ' photo' : ''} ${className}`.trim()}
       style={{ ['--c' as string]: color, ...(size ? { width: size, height: size, fontSize: size * 0.42 } : {}) }}
       aria-hidden="true"
     >
-      {(name || '?')[0].toUpperCase()}
+      {photo ? <img src={url!} alt="" loading="lazy" onError={() => setBad(true)} /> : (name || '?')[0].toUpperCase()}
     </span>
   )
 }

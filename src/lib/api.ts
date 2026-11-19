@@ -109,6 +109,7 @@ export interface NewBook {
   edition: EditionHit | null
   pages: number | null
   status: Status
+  genres?: string[]
 }
 
 export async function addBook(uid: string, b: NewBook): Promise<UserBook> {
@@ -123,13 +124,14 @@ export async function addBook(uid: string, b: NewBook): Promise<UserBook> {
       total_pages: b.pages,
       status: b.status,
       page: 0,
+      genres: (b.genres?.length ? b.genres : [b.work.genre]).slice(0, 3),
     })
     .select(BOOK_SELECT)
     .single()
   return ok(r) as UserBook
 }
 
-export async function updateBook(id: string, patch: Partial<Pick<UserBook, 'status' | 'page' | 'rating' | 'total_pages'>>) {
+export async function updateBook(id: string, patch: Partial<Pick<UserBook, 'status' | 'page' | 'rating' | 'total_pages' | 'custom_cover_url' | 'genres'>>) {
   return ok(await supabase.from('user_books').update(patch).eq('id', id).select(BOOK_SELECT).single()) as UserBook
 }
 
@@ -187,7 +189,7 @@ export interface SessionResult {
 export async function logSession(
   uid: string,
   book: UserBook,
-  input: { minutes: number; page: number | null; circleId?: string | null },
+  input: { minutes: number; page: number | null; circleId?: string | null; day?: string },
 ): Promise<SessionResult> {
   const total = totalOf(book)
   const { page, gained } = applyPage(book.page, input.page, total)
@@ -198,7 +200,7 @@ export async function logSession(
       .insert({
         user_id: uid,
         user_book_id: book.id,
-        day: iso(new Date()),
+        day: input.day ?? iso(new Date()),
         minutes,
         pages_read: Math.min(2000, gained),
         circle_id: input.circleId ?? null,
@@ -234,6 +236,20 @@ export const missionKey = (id: string) => `mission:${weekId()}:${id}`
 export const ritualKey = () => `ritual:${iso(new Date())}`
 export const closeKey = (userBookId: string, status: Status) => `close:${userBookId}:${status}`
 
+/* ---------- boutique (les prix et le solde sont vérifiés par la base) ---------- */
+export async function ownedItems(): Promise<Set<string>> {
+  const r = await supabase.from('owned_items').select('item_id')
+  return new Set((ok(r) as { item_id: string }[]).map((x) => x.item_id))
+}
+
+export async function buyItem(item: string): Promise<number> {
+  return ok(await supabase.rpc('buy_item', { p_item: item })) as number
+}
+
+export async function equipItem(item: string): Promise<Record<string, string>> {
+  return ok(await supabase.rpc('equip_item', { p_item: item })) as Record<string, string>
+}
+
 /* ---------- cercles ---------- */
 export async function listCircles(): Promise<Circle[]> {
   const r = await supabase.from('circles').select('*').order('created_at')
@@ -263,10 +279,10 @@ export async function leaveCircle(circleId: string, uid: string) {
 export async function listMembers(circleId: string): Promise<Member[]> {
   const m = ok(await supabase.from('circle_members').select('user_id, role').eq('circle_id', circleId)) as { user_id: string; role: 'owner' | 'member' }[]
   const ids = m.map((x) => x.user_id)
-  const p = ok(await supabase.from('profiles').select('id, display_name, avatar_color').in('id', ids)) as { id: string; display_name: string; avatar_color: string }[]
+  const p = ok(await supabase.from('profiles').select('id, display_name, avatar_color, avatar_url').in('id', ids)) as { id: string; display_name: string; avatar_color: string; avatar_url: string | null }[]
   return m.map((x) => {
     const pr = p.find((y) => y.id === x.user_id)
-    return { ...x, display_name: pr?.display_name ?? 'Lecteur', avatar_color: pr?.avatar_color ?? '#161D3A' }
+    return { ...x, display_name: pr?.display_name ?? 'Lecteur', avatar_color: pr?.avatar_color ?? '#161D3A', avatar_url: pr?.avatar_url ?? null }
   })
 }
 

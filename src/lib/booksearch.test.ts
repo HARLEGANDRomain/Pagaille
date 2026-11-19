@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { dedupeEditions, groupVolumes, guessFormat, isbn10to13, isIsbnQuery, mergeHits, tokens, type GBVolume } from './booksearch'
+import { dedupeEditions, groupVolumes, guessFormat, isbn10to13, isIsbnQuery, mergeHits, relevance, tokenMatches, tokens, validEan13, type GBVolume } from './booksearch'
 import type { WorkHit } from '../types'
 
 const vol = (title: string, authors: string[], extra: Partial<NonNullable<GBVolume['volumeInfo']>> = {}): GBVolume => ({
@@ -87,5 +87,63 @@ describe('dedupeEditions / mergeHits', () => {
     expect(m[0].editionCount).toBe(90)
     expect(m.map((h) => h.title)).toContain('Dune Messiah')
     expect(m).toHaveLength(2)
+  })
+})
+
+/* Les six livres de Romain qui ne remontaient pas (novembre 2026) : notices de la BnF, fautes de frappe comprises. */
+describe('recherche tolérante', () => {
+  const bnf = (title: string, author: string, isbn: string, pages?: number, format?: 'poche' | 'broche', publisher = 'X'): GBVolume => ({
+    id: 'bnf-' + isbn,
+    volumeInfo: { title, authors: author ? [author] : [], publisher, pageCount: pages, industryIdentifiers: [{ type: 'ISBN_13', identifier: isbn }], language: 'fr', source: 'bnf', format },
+  })
+  it('tolère une faute ou un mot incomplet', () => {
+    expect(relevance('stephan king', 'Après', 'Stephen King')).toBe(1)
+    expect(relevance('corne joe hill', 'Cornes', 'Joe Hill')).toBe(1)
+    expect(relevance('albert camu', 'L’Étranger', 'Albert Camus')).toBe(1)
+    expect(relevance('dune', 'Le Hobbit', 'Tolkien')).toBe(0)
+    expect(tokenMatches('ca', ['cas'])).toBe(false) // pas de tolérance sur les mots très courts
+  })
+  it('« Après stephan king » trouve Après de Stephen King devant les adaptations', () => {
+    const r = groupVolumes([
+      bnf('La tour sombre', '', '9782302000001'),
+      bnf('Ôter les masques : d’après "Shining" de Stephen King', 'Éric Pessan', '9782350183251', 152),
+      bnf('Après', 'Stephen King', '9782226459763', 329),
+    ], 'Après stephan king')
+    expect(r[0].title).toBe('Après')
+  })
+  it('« L’étranger albert camu » préfère le roman aux études sur le roman', () => {
+    const r = groupVolumes([
+      bnf('Albert Camus et "l’Étranger"', 'Pierre-Georges Castex', '9782714301401'),
+      bnf('L’absurde', 'Albert Camus', '9782070454600', 245),
+      bnf('L’étranger', 'Albert Camus', '9782070360024', 186, 'poche', 'Gallimard'),
+    ], "L'étranger albert camu")
+    expect(r[0].title).toBe('L’étranger')
+  })
+  it('regroupe les éditions BnF de « Cornes » et met le poche en avant', () => {
+    const r = groupVolumes([
+      bnf('Cornes', 'Joe Hill', '9782709629058', 414, 'broche', 'J.-C. Lattès'),
+      bnf('Cornes', 'Joe Hill', '9782290054345', 510, 'poche', "J'ai lu"),
+      bnf('Christian anarchist', 'William Marling', '9781479810079'),
+    ], 'Corne joe hill')
+    expect(r).toHaveLength(1)
+    expect(r[0].editions).toHaveLength(2)
+    expect(r[0].primary?.format).toBe('poche')
+    expect(r[0].coverUrl).toContain('covers.openlibrary.org/b/isbn/')
+  })
+  it('« 7 lettres olivia harvard » et « Sept lettres » désignent le même livre', () => {
+    const v = [bnf('7 lettres', 'Olivia Harvard', '9782017134282', 397, 'poche')]
+    expect(groupVolumes(v, '7 lettres olivia harvard')[0].title).toBe('7 lettres')
+    expect(groupVolumes(v, 'sept lettres')[0].title).toBe('7 lettres')
+  })
+  it('« ça stephan king » garde le titre français Ça', () => {
+    const r = groupVolumes([
+      bnf('It', 'Stephen King', '9781444707861', 1184, 'broche'),
+      bnf('Ça', 'Stephen King', '9782253151340', 799, 'poche', 'Le Livre de poche'),
+    ].map((v, i) => (i === 0 ? { ...v, volumeInfo: { ...v.volumeInfo, language: 'en' } } : v)), 'ça stephan king')
+    expect(r[0].title).toBe('Ça')
+  })
+  it('contrôle la clé d’un code-barres EAN-13', () => {
+    expect(validEan13('9782070360024')).toBe(true)
+    expect(validEan13('9782070360025')).toBe(false)
   })
 })

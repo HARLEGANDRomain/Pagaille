@@ -32,7 +32,7 @@ await page.screenshot({ path: '/tmp/shots/01-accueil.png' })
 // ---- bibliothèque + glisser-déposer
 await page.goto(URL + '#bibliotheque'); await sleep(400)
 t = await txt()
-ok(t.includes('Ta bibliothèque') && t.includes('7 livres'), 'bibliothèque : 7 livres')
+ok(t.includes('Ta bibliothèque') && t.includes('33 livres'), 'bibliothèque : 33 livres (7 + 26 pour tester les étagères pleines)')
 await page.screenshot({ path: '/tmp/shots/02-bibliotheque.png' })
 const dragTo = async (title, shelfKey) => {
   const sp = await page.$(`.shelf .spine[title="${title}"]`)
@@ -48,6 +48,7 @@ const dragTo = async (title, shelfKey) => {
   await sleep(500)
 }
 await dragTo('Fahrenheit 451', 'fini')
+await page.evaluate(() => document.querySelector('.shelf[data-drop="fini"] .more-pile')?.click()); await sleep(200)
 const inFini = await page.evaluate(() => [...document.querySelectorAll('.shelf[data-drop="fini"] .spine')].map((e) => e.getAttribute('title')))
 ok(inFini.includes('Fahrenheit 451'), 'glisser-déposer : le livre passe sur l’étagère « Terminés »')
 t = await txt()
@@ -80,7 +81,7 @@ await fill(inputs[0], 'Le Vieil Homme et la Mer')
 await inputs[1].type('Ernest Hemingway'); await inputs[2].type('150')
 await clickText('dialog[open] button', 'Ajouter'); await sleep(600)
 t = await txt()
-ok(t.includes('Le Vieil Homme et la Mer') && t.includes('8 livres'), 'ajout manuel : le livre apparaît (8 livres)')
+ok(t.includes('Le Vieil Homme et la Mer') && t.includes('34 livres'), 'ajout manuel : le livre apparaît (34 livres)')
 
 // ---- session de lecture
 await page.goto(URL + '#aujourdhui'); await sleep(400)
@@ -112,10 +113,10 @@ if (claims) { await page.click('.mission .btn.primary'); await sleep(500); ok((a
 // ---- découvrir
 await page.goto(URL + '#decouvrir'); await sleep(400)
 t = await txt()
-ok(t.includes('moins de 200 pages') && t.includes('Matin brun'), 'découvrir : sélection affichée')
+ok(t.includes('Dans tes goûts') && t.includes('Du moment') && !t.includes('moins de 200 pages'), 'découvrir : sélection affichée, sans la section « moins de 200 pages »')
 await page.screenshot({ path: '/tmp/shots/09-decouvrir.png' })
 await clickText('button', 'Ajouter à ma pile'); await sleep(400)
-const pre = await page.$eval('dialog[open] form input', (i) => i.value).catch(() => '')
+const pre = await page.$eval('dialog[open] form input, dialog[open] input[aria-label="Chercher un livre"]', (i) => i.value).catch(() => '')
 ok(pre.length > 2, 'découvrir : l’ajout pré-remplit le titre (' + pre + ')')
 await page.keyboard.press('Escape'); await sleep(200)
 

@@ -1,6 +1,7 @@
 /* Recherche de livres dans Open Library. Une œuvre (works) a plusieurs éditions : on cherche des œuvres,
    puis on propose les éditions à la demande. Aucune clé n'est nécessaire. */
 import type { Edition, EditionHit, WorkHit } from '../types'
+import { guessGenres } from './genres'
 
 const BASE = 'https://openlibrary.org'
 
@@ -29,40 +30,49 @@ interface SearchDoc {
 
 const coverById = (id: number | undefined, size: 'S' | 'M' | 'L' = 'M') =>
   id && id > 0 ? `https://covers.openlibrary.org/b/id/${id}-${size}.jpg` : null
+/** Couverture d'après l'ISBN : `default=false` fait répondre 404 s'il n'y en a pas (l'appli affiche alors sa couverture dessinée). */
+export const isbnCover = (isbn: string, size: 'S' | 'M' | 'L' = 'M') => `https://covers.openlibrary.org/b/isbn/${isbn}-${size}.jpg?default=false`
 
-const GENRE_HINTS: [RegExp, string][] = [
-  [/science fiction|dystop/i, 'SF'],
-  [/fantasy|fantas/i, 'Fantasy'],
-  [/detective|mystery|crime|thriller|polar/i, 'Polar'],
-  [/comic|graphic novel|bande dessin/i, 'BD'],
-  [/design|typograph|usability/i, 'Design'],
-  [/essay|history|philosoph|science|biograph/i, 'Essai'],
-]
+/** Genre principal deviné (compatibilité) ; voir guessGenres pour la liste complète. */
 export function guessGenre(subjects: string[] = []): string {
-  const joined = subjects.slice(0, 15).join(' | ')
-  for (const [re, g] of GENRE_HINTS) if (re.test(joined)) return g
-  return 'Roman'
+  return guessGenres(subjects)[0]
 }
+
+interface SearchEdition { key?: string; title?: string; language?: string[]; cover_i?: number; isbn?: string[]; publisher?: string[] }
 
 export async function searchWorks(q: string): Promise<WorkHit[]> {
   const query = q.trim()
   if (query.length < 2) return []
-  const fields = 'key,title,author_name,first_publish_year,cover_i,number_of_pages_median,edition_count,subject'
-  const data = await getJson<{ docs: SearchDoc[] }>(
-    `${BASE}/search.json?q=${encodeURIComponent(query)}&fields=${fields}&limit=8&lang=fre`,
+  // « editions » + lang=fr : Open Library renvoie l'édition française de l'œuvre quand elle existe
+  // (titre « Ça » plutôt que « It », et sa couverture française).
+  const fields = 'key,title,author_name,first_publish_year,cover_i,number_of_pages_median,edition_count,subject,editions,editions.key,editions.title,editions.language,editions.cover_i,editions.isbn,editions.publisher'
+  const data = await getJson<{ docs: (SearchDoc & { editions?: { docs?: SearchEdition[] } })[] }>(
+    `${BASE}/search.json?q=${encodeURIComponent(query)}&fields=${fields}&limit=12&lang=fr`,
   )
   return (data.docs ?? [])
     .filter((d) => d.title)
-    .map((d) => ({
-      olWorkId: d.key.replace('/works/', ''),
-      title: d.title!,
-      author: d.author_name?.[0] ?? '',
-      year: d.first_publish_year ?? null,
-      genre: guessGenre(d.subject),
-      pages: d.number_of_pages_median ?? null,
-      coverUrl: coverById(d.cover_i),
-      editionCount: d.edition_count ?? 0,
-    }))
+    .map((d) => {
+      const fr = d.editions?.docs?.find((e) => e.language?.includes('fre') && e.title)
+      const isbn = fr?.isbn?.find((x) => /^\d{13}$/.test(x)) ?? null
+      const genres = guessGenres(d.subject)
+      const cover = coverById(fr?.cover_i) ?? (isbn ? isbnCover(isbn) : null) ?? coverById(d.cover_i)
+      const primary: EditionHit | null = fr
+        ? { olEditionId: fr.key?.replace('/books/', '') ?? null, title: fr.title ?? null, publisher: fr.publisher?.[0] ?? null, format: 'autre', pages: null, isbn13: isbn, coverUrl: cover, language: 'fre', year: null }
+        : null
+      return {
+        olWorkId: d.key.replace('/works/', ''),
+        title: fr?.title ?? d.title!,
+        author: d.author_name?.[0] ?? '',
+        year: d.first_publish_year ?? null,
+        genre: genres[0],
+        genres,
+        pages: d.number_of_pages_median ?? null,
+        coverUrl: cover,
+        editionCount: d.edition_count ?? 0,
+        editions: primary ? [primary] : undefined,
+        primary,
+      }
+    })
 }
 
 interface EditionDoc {
@@ -97,7 +107,7 @@ export async function listEditions(olWorkId: string): Promise<EditionHit[]> {
       format: formatOf(e.physical_format),
       pages: e.number_of_pages ?? null,
       isbn13: e.isbn_13?.[0] && /^\d{13}$/.test(e.isbn_13[0]) ? e.isbn_13[0] : null,
-      coverUrl: coverById(e.covers?.[0]),
+      coverUrl: coverById(e.covers?.[0]) ?? (e.isbn_13?.[0] && /^\d{13}$/.test(e.isbn_13[0]) ? isbnCover(e.isbn_13[0]) : null),
       language: e.languages?.[0]?.key.replace('/languages/', '') ?? null,
       year: e.publish_date ? Number(/\d{4}/.exec(e.publish_date)?.[0]) || null : null,
     }))

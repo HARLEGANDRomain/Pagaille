@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { explain } from '../lib/supabase'
-import { GENRES, plural } from '../lib/logic'
+import { plural } from '../lib/logic'
+import { GENRE_FAMILIES, short } from '../lib/genres'
 import { Err } from '../lib/ui'
 import { useStore } from '../lib/store'
 
@@ -47,7 +48,14 @@ export default function Onboarding({ onDone }: { onDone: () => void }) {
         </fieldset>
         <fieldset style={{ border: 0, padding: 0, margin: 0 }}>
           <legend className="small" style={{ fontWeight: 500, marginBottom: 6 }}>Ce que tu aimes (facultatif)</legend>
-          <div className="row">{GENRES.map((g) => <button type="button" key={g} className="chip" aria-pressed={tastes.includes(g)} onClick={() => toggle(g)}>{g}</button>)}</div>
+          <div className="tastes">
+            {GENRE_FAMILIES.map((f) => (
+              <div key={f.family} className="row" style={{ gap: 6 }}>
+                <span className="small muted fam">{f.family}</span>
+                {f.genres.map((g) => <button type="button" key={g} className="chip sm" aria-pressed={tastes.includes(g)} onClick={() => toggle(g)}>{short(g)}</button>)}
+              </div>
+            ))}
+          </div>
         </fieldset>
         <Err>{error}</Err>
         <button className="btn primary" disabled={busy}>{busy ? 'Un instant…' : 'Entrer dans ma bibliothèque'}</button>
