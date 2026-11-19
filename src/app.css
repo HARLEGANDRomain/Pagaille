@@ -124,4 +124,3 @@ dialog.drawer .chatbox.tall{height:calc(100dvh - 140px)}
 .synopsis{display:flex;flex-direction:column;align-items:flex-start;gap:4px}
 .synopsis p{white-space:pre-line;line-height:1.5;margin:0;overflow-wrap:anywhere}
 .synopsis p.clamp{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:var(--lines,5);overflow:hidden}
-.rec .synopsis p{color:var(--muted,inherit);font-size:.92rem}
