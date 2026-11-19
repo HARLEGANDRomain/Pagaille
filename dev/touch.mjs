@@ -1,0 +1,26 @@
+import puppeteer from 'puppeteer-core'
+const b = await puppeteer.launch({ executablePath: '/usr/bin/google-chrome', headless: 'new', args: ['--no-sandbox','--disable-gpu'] })
+const p = await b.newPage(); await p.setViewport({ width: 390, height: 844, isMobile: true, hasTouch: true })
+await p.setRequestInterception(true); p.on('request', r => /localhost/.test(r.url()) ? r.continue() : r.abort())
+const sleep = (ms) => new Promise(r => setTimeout(r, ms))
+await p.goto('http://localhost:4173/#bibliotheque', { waitUntil: 'networkidle0' }); await sleep(500)
+const shelf = (k) => p.$eval(`.shelf[data-drop="${k}"]`, e => [...e.querySelectorAll('.spine')].map(s => s.title))
+console.log('avant, terminés:', await shelf('fini'))
+const sp = await p.$('.shelf[data-drop="cours"] .spine[title="Dune"]'); await sp.evaluate(e => e.scrollIntoView({ block: 'center' }))
+const a = await sp.boundingBox()
+const target = await (await p.$('.shelf[data-drop="fini"]')).boundingBox()
+// 1) glissement rapide = défilement, ne doit rien déplacer
+await p.touchscreen.touchStart(a.x + a.width / 2, a.y + 60)
+await p.touchscreen.touchMove(a.x + a.width / 2, a.y + 10)
+await p.touchscreen.touchEnd(); await sleep(300)
+console.log('après glissement rapide, terminés:', await shelf('fini'))
+// 2) appui long puis glisser = déplacement
+const a2 = await (await p.$('.shelf[data-drop="cours"] .spine[title="Dune"]')).boundingBox()
+await p.touchscreen.touchStart(a2.x + a2.width / 2, a2.y + 60)
+await sleep(500)
+for (let i = 1; i <= 10; i++) { await p.touchscreen.touchMove(a2.x + a2.width / 2 + (target.x + target.width / 2 - a2.x - a2.width / 2) * i / 10, a2.y + 60 + (target.y + target.height / 2 - a2.y - 60) * i / 10); await sleep(30) }
+console.log('ghost présent:', !!(await p.$('.spine.ghost')))
+await p.touchscreen.touchEnd(); await sleep(700)
+console.log('après appui long + glisser, terminés:', await shelf('fini'))
+await p.screenshot({ path: '/tmp/shots/16-touch.png' })
+await b.close()

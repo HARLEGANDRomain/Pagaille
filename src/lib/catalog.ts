@@ -1,0 +1,43 @@
+/* Sélection éditoriale pour « Découvrir » : titres courts d'abord. Pages approximatives (poche). */
+export interface CatalogBook { id: string; title: string; author: string; pages: number; genre: string; tags: string; pitch: string }
+type Row = [string, string, string, number, string, string, string]
+const ROWS: Row[] = [
+  ['matin','Matin brun','Franck Pavloff',12,'Roman','court','Une dizaine de pages. Fini avant que ton café refroidisse.'],
+  ['horla','Le Horla','Guy de Maupassant',90,'Fantastique','court classique','Un journal intime qui déraille, page après page.'],
+  ['novecento','Novecento : pianiste','Alessandro Baricco',90,'Roman','court','Un pianiste né sur un paquebot, qui n’en descendra jamais.'],
+  ['inconnu','Inconnu à cette adresse','Kressmann Taylor',90,'Roman','court','Dix-neuf lettres, une amitié qui se retourne.'],
+  ['prince','Le Petit Prince','Antoine de Saint-Exupéry',95,'Roman','court classique','Se relit en une soirée, ne dit pas la même chose qu’à dix ans.'],
+  ['metamorphose','La Métamorphose','Franz Kafka',120,'Fantastique','court classique','Gregor se réveille changé. Sa famille s’adapte moins bien que lui.'],
+  ['vieil','Le Vieil Homme et la Mer','Ernest Hemingway',150,'Roman','court classique','Un homme, un poisson, trois jours.'],
+  ['ferme','La Ferme des animaux','George Orwell',150,'Roman','court classique','Une révolution à la ferme, et ce qu’elle devient.'],
+  ['souris','Des souris et des hommes','John Steinbeck',175,'Roman','court classique','Deux saisonniers, un rêve de ferme, peu de pages.'],
+  ['etranger','L’Étranger','Albert Camus',185,'Roman','court classique','Des phrases courtes, un soleil qui cogne.'],
+  ['stupeur','Stupeur et tremblements','Amélie Nothomb',190,'Roman','court','Une année dans une entreprise japonaise, du haut vers le bas.'],
+  ['krug','Don’t Make Me Think','Steve Krug',200,'Design','court','Le classique de l’utilisabilité, lisible en deux trajets.'],
+  ['dix','Ils étaient dix','Agatha Christie',220,'Polar','classique','Dix invités sur une île, personne pour les accueillir.'],
+  ['f451','Fahrenheit 451','Ray Bradbury',235,'SF','classique','Un pompier dont le métier est de brûler les livres.'],
+  ['basker','Le Chien des Baskerville','Arthur Conan Doyle',250,'Polar','classique','Holmes, une lande, une légende trop pratique.'],
+  ['arabe','L’Arabe du futur, tome 1','Riad Sattouf',160,'BD','','Une enfance entre Libye, Syrie et Bretagne.'],
+  ['maus','Maus','Art Spiegelman',300,'BD','classique','Un fils dessine la mémoire de son père.'],
+  ['persepolis','Persepolis','Marjane Satrapi',350,'BD','classique','Grandir à Téhéran, en noir et blanc.'],
+  ['algernon','Des fleurs pour Algernon','Daniel Keyes',310,'SF','classique','Les comptes rendus de Charlie, qui devient trop intelligent.'],
+  ['meilleur','Le Meilleur des mondes','Aldous Huxley',320,'SF','classique','Une société où tout le monde est content, par conception.'],
+  ['norman','The Design of Everyday Things','Don Norman',370,'Design','classique','Pourquoi on pousse les portes qu’il faut tirer.'],
+  ['voeu','Le Sorceleur : Le Dernier Vœu','Andrzej Sapkowski',380,'Fantasy','','Des nouvelles, donc des portes de sortie régulières.'],
+  ['1984','1984','George Orwell',400,'SF','classique','Le roman dont viennent la moitié de nos métaphores.'],
+  ['hobbit','Le Hobbit','J. R. R. Tolkien',400,'Fantasy','classique','Une aventure qui commence par un goûter imprévu.'],
+  ['houris','Houris','Kamel Daoud',410,'Roman','moment','Prix Goncourt 2024.'],
+  ['belami','Bel-Ami','Guy de Maupassant',430,'Roman','classique','Une ascension sociale sans scrupules dans le Paris des journaux.'],
+  ['hailmary','Projet Dernière Chance','Andy Weir',480,'SF','moment','Un prof de sciences seul dans un vaisseau, et un problème à résoudre.'],
+  ['sapiens','Sapiens','Yuval Noah Harari',500,'Essai','','Une histoire de l’humanité en grands coups de pinceau.'],
+  ['veiller','Veiller sur elle','Jean-Baptiste Andrea',580,'Roman','moment','Prix Goncourt 2023.'],
+  ['horde','La Horde du Contrevent','Alain Damasio',700,'SF','','Vingt-trois marcheurs remontent le vent jusqu’à sa source.'],
+  ['maison','La Maison vide','Laurent Mauvignier',740,'Roman','moment','Prix Goncourt 2025.'],
+  ['javel','L’Inconnue du quai de Javel','Philippe Jaenada',0,'Roman','moment','Prix Goncourt 2026. Une enquête sur un meurtre jamais résolu des années 1940.'],
+  ['palais','Le Palais','François-Henri Désérable',0,'Roman','moment','Prix Renaudot 2026.'],
+  ['nomvent','Le Nom du vent','Patrick Rothfuss',790,'Fantasy','','Un aubergiste raconte la légende qu’il a été.'],
+  ['dune','Dune','Frank Herbert',830,'SF','classique','Une planète de sable, une épice, des maisons rivales.'],
+  ['quebert','La Vérité sur l’affaire Harry Quebert','Joël Dicker',860,'Polar','','Un page-turner au sens strict.'],
+  ['monte','Le Comte de Monte-Cristo','Alexandre Dumas',1400,'Roman','classique','Long, oui. Mais écrit en feuilleton : chaque chapitre relance.']
+]
+export const CATALOG: CatalogBook[] = ROWS.map(([id, title, author, pages, genre, tags, pitch]) => ({ id, title, author, pages, genre, tags, pitch }))
