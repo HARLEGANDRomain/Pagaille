@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { bestSynopsis, cleanSynopsis, dedupeEditions, groupVolumes, guessFormat, isbn10to13, isIsbnQuery, mergeHits, relevance, tokenMatches, tokens, validEan13, type GBVolume } from './booksearch'
+import { isDiscoverable, bestSynopsis, cleanSynopsis, dedupeEditions, groupVolumes, guessFormat, isbn10to13, isIsbnQuery, mergeHits, relevance, tokenMatches, tokens, validEan13, type GBVolume } from './booksearch'
 import type { WorkHit } from '../types'
 
 const vol = (title: string, authors: string[], extra: Partial<NonNullable<GBVolume['volumeInfo']>> = {}): GBVolume => ({
@@ -173,5 +173,18 @@ describe('résumés', () => {
     ]
     const hits = groupVolumes(vols, 'cornes joe hill')
     expect(hits[0].description).toBe('Ig Perrish se réveille avec des cornes : chacun lui avoue ses secrets.')
+  })
+})
+
+describe('sélection de découverte', () => {
+  const base = { olWorkId: null, year: null, genre: 'Roman', pages: 200, coverUrl: 'https://x/c.jpg', editionCount: 1, primary: { language: 'fre' } } as unknown as Parameters<typeof isDiscoverable>[0]
+  it('écarte les résultats sans auteur et les revues', () => {
+    expect(isDiscoverable({ ...base, title: 'Revue bourguignonne de l’enseignement supérieur', author: '' })).toBe(false)
+    expect(isDiscoverable({ ...base, title: 'Bulletin de la société', author: 'Jean Dupont' })).toBe(false)
+    expect(isDiscoverable({ ...base, title: 'Matin brun', author: '' })).toBe(false)
+  })
+  it('garde un vrai livre', () => {
+    expect(isDiscoverable({ ...base, title: 'Matin brun', author: 'Franck Pavloff' })).toBe(true)
+    expect(isDiscoverable({ ...base, title: 'La Revue des mondes inconnus', author: 'A. Auteur' })).toBe(false) // « revue » en mot entier : écarté par prudence
   })
 })

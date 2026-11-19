@@ -155,6 +155,13 @@ export default function AddBook({ onClose, initial }: { onClose: () => void; ini
               {canScan() && <button type="button" className="btn sm" onClick={() => setScan(true)} aria-label="Scanner le code-barres">Scanner</button>}
             </div>
           )}
+          {initial?.description && !initial.hit && q === [initial.title, initial.author].filter(Boolean).join(' ') && (
+            <div className="stack" style={{ gap: 4 }}>
+              <b className="bk">{initial.title}</b>
+              <span className="muted small">{initial.author}</span>
+              <Synopsis text={initial.description} lines={5} />
+            </div>
+          )}
           {searching && <p className="muted small" role="status">Recherche…</p>}
           <Err>{searchErr}</Err>
           <div className="hits">

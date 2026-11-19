@@ -129,7 +129,7 @@ function Shell() {
   }
 
   const fromCatalog = (c: DiscoverPick) =>
-    setAdd({ initial: { title: c.title, author: c.author, pages: c.pages, genre: c.genre, status: 'lire', hit: c.hit } })
+    setAdd({ initial: { title: c.title, author: c.author, pages: c.pages, genre: c.genre, status: 'lire', hit: c.hit, description: c.description } })
 
   // Sur l'onglet Cercle, la discussion est déjà dans la page : ni colonne, ni bulle.
   const docked = wide && st.circles.length > 0 && route !== 'cercle'

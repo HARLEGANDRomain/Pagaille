@@ -3,7 +3,7 @@ import { CATALOG, type CatalogBook } from '../lib/catalog'
 import { norm } from '../lib/logic'
 import { GENRE_FAMILIES, GOOGLE_SUBJECT, short, upgradeGenre } from '../lib/genres'
 import { booksForSubject, relevance, searchBooks } from '../lib/booksearch'
-import { Cover, Synopsis } from '../lib/ui'
+import { Cover } from '../lib/ui'
 import { useStore } from '../lib/store'
 import type { WorkHit } from '../types'
 
@@ -43,13 +43,12 @@ function useResolved(books: CatalogBook[]) {
   return map
 }
 
-function Card({ title, author, pages, pitch, resume, hit, onPick }: { title: string; author: string; pages?: number | null; pitch?: string; resume?: string; hit?: WorkHit | null; onPick: () => void }) {
+function Card({ title, author, pages, hit, onPick }: { title: string; author: string; pages?: number | null; hit?: WorkHit | null; onPick: () => void }) {
   const p = hit?.primary?.pages ?? hit?.pages ?? pages
   return (
     <div className="rec">
       <Cover title={title} author={author} url={hit?.coverUrl} onClick={onPick} />
       <div><b className="bk">{title}</b><br /><span className="muted small">{author}{p ? `, ${p} p.` : ''}</span></div>
-      <Synopsis text={resume || hit?.description || pitch} lines={4} />
       <div><button className="btn sm" onClick={onPick}>Ajouter à ma pile</button></div>
     </div>
   )
@@ -121,7 +120,7 @@ export default function Discover({ onPick }: { onPick: (p: DiscoverPick) => void
         <h2>{h}</h2>
         {p && <p className="muted small" style={{ margin: '4px 0 18px', maxWidth: '60ch' }}>{p}</p>}
         <div className="grid">
-          {arr.map((c) => <Card key={c.id} title={c.title} author={c.author} pages={c.pages} pitch={c.pitch} resume={c.resume} hit={resolved[c.id]} onPick={() => pickCat(c)} />)}
+          {arr.map((c) => <Card key={c.id} title={c.title} author={c.author} pages={c.pages} hit={resolved[c.id]} onPick={() => pickCat(c)} />)}
           {more.map((h) => <Card key={h.title + h.author} title={h.title} author={h.author} hit={h} onPick={() => onPick({ title: h.title, author: h.author, pages: h.pages, genre: h.genre, hit: h })} />)}
         </div>
       </section>

@@ -365,8 +365,16 @@ export async function editionsFor(w: { title: string; author: string; olWorkId: 
 
 /** Livres d'un genre pour « Découvrir » (Google Books, en français, via le serveur et son cache).
     Seules les œuvres avec une édition française, une couverture et un nombre de pages sont gardées. */
+/** Résultats qui ne sont pas des livres à lire (revues, annales, rapports…) : à écarter d'une sélection de découverte. */
+const NOT_A_BOOK = /\b(revue|bulletin|annales?|journal officiel|rapport|th[eè]se|actes? (du|de)|catalogue|congr[eè]s|proc[eè]s-verbaux|m[eé]moires? (de|du|d')|code (civil|p[eé]nal|de)|dictionnaire|annuaire)\b/i
+
+/** Un résultat de sujet est gardé s'il a un auteur, une couverture, un nombre de pages et ressemble à un livre. */
+export function isDiscoverable(h: WorkHit): boolean {
+  return !!h.author.trim() && !!h.coverUrl && !!h.pages && h.primary?.language === 'fre' && !NOT_A_BOOK.test(h.title)
+}
+
 export async function booksForSubject(subject: string): Promise<WorkHit[]> {
   const r = await viaServer({ subject })
   if (!r) return []
-  return groupVolumes(r.google, '', true).filter((h) => h.primary?.language === 'fre' && h.coverUrl && h.pages)
+  return groupVolumes(r.google, '', true).filter(isDiscoverable)
 }
