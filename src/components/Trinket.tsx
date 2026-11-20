@@ -12,11 +12,11 @@ export interface TrinketHandle { poke: () => void }
 
 /** Dimensions : la boîte du dessin et la hauteur affichée. Le bas du dessin est le pied de l'objet. */
 export const TRINKETS: Record<string, { vb: [number, number]; h: number }> = {
-  'obj-plante': { vb: [60, 84], h: 84 },
-  'obj-bougie': { vb: [40, 84], h: 78 },
-  'obj-sablier': { vb: [44, 84], h: 74 },
-  'obj-chat': { vb: [84, 60], h: 60 },
-  'obj-globe': { vb: [60, 84], h: 80 },
+  'obj-plante': { vb: [60, 84], h: 104 },
+  'obj-bougie': { vb: [40, 84], h: 98 },
+  'obj-sablier': { vb: [44, 84], h: 94 },
+  'obj-chat': { vb: [84, 60], h: 80 },
+  'obj-globe': { vb: [60, 84], h: 10 },
 }
 export const trinketSize = (id: string, h?: number) => {
   const t = TRINKETS[id]
@@ -54,7 +54,7 @@ function loop(fn: (dt: number) => boolean) {
   return () => cancelAnimationFrame(raf)
 }
 
-const play = (el: Element | null, k: Keyframe[], o: KeyframeAnimationOptions) => el?.animate(k, { fill: 'none', ...o }).finished.catch(() => {})
+const play = (el: Element | null, k: Keyframe[], o: KeyframeAnimationOptions) => el?.animate(k, { fill: 'none', ...o }).finished.catch(() => { })
 
 /* ---------------- Chat ---------------- */
 function Cat({ handle }: { handle: Ref<TrinketHandle> | undefined }) {
@@ -193,7 +193,7 @@ function Hourglass({ handle, uid }: { handle: Ref<TrinketHandle> | undefined; ui
   const s = useRef(0.4) // part du sable encore en haut
   const rate = useRef(1 / 120) // vitesse d'écoulement (part par seconde) : lente au repos, rapide après un retournement
   const busy = useRef(false)
-  const stop = useRef<() => void>(() => {})
+  const stop = useRef<() => void>(() => { })
   const draw = () => {
     const v = s.current
     top.current?.setAttribute('y', String(56 - 22 * v)); top.current?.setAttribute('height', String(22 * v))
