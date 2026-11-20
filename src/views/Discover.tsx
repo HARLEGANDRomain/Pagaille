@@ -145,7 +145,7 @@ export default function Discover({ onPick }: { onPick: (p: DiscoverPick) => void
         ))}
         <div><button className="btn ghost sm" onClick={() => setAllGenres(!allGenres)}>{allGenres ? 'Moins de genres' : 'Voir les 34 genres'}</button></div>
       </div>
-      {!tastes.length && <p className="panel small" style={{ marginBottom: 24 }}>Choisis un ou plusieurs genres ci-dessus : la section « Dans tes goûts » apparaîtra en tête.</p>}
+      {!tastes.length && <p className="panel small" style={{ marginBottom: 24 }} data-perch="zone:gouts">Choisis un ou plusieurs genres ci-dessus : la section « Dans tes goûts » apparaîtra en tête.</p>}
       <Sec h="Dans tes goûts" p={tastes.length ? `D’après ${tastes.map(short).join(', ')}.` : ''} arr={sections.taste} more={extra} />
       <Sec h="Du moment" p="Les prix de l’automne et ce dont on parle." arr={sections.moment} />
       <Sec h="Les classiques qui se lisent bien" p="Ceux qu’on cite sans les avoir ouverts." arr={sections.classic} />

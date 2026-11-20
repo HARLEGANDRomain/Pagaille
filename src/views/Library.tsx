@@ -2,7 +2,6 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { explain } from '../lib/supabase'
 import { hash, norm, pct, plural, SPINES, spineColors, STATUS_LABEL, totalOf } from '../lib/logic'
 import { genresOf, GENRES, short } from '../lib/genres'
-import { equippedItem, OBJ_SVG } from '../lib/cosmetics'
 import { Bar, Pill, Spine, spineWidth, useToast } from '../lib/ui'
 import { useStore } from '../lib/store'
 import type { Status, UserBook } from '../types'
@@ -25,7 +24,7 @@ const SORTERS: Record<string, (a: UserBook, b: UserBook) => number> = {
   genre: (a, b) => genresOf(a)[0].localeCompare(genresOf(b)[0], 'fr') || a.work.title.localeCompare(b.work.title, 'fr'),
 }
 
-const GAP = 3, PAD = 24, OBJ_W = 76, MORE_W = 74, MAX_ROWS = 2
+const GAP = 3, PAD = 24, MORE_W = 74, MAX_ROWS = 2
 
 /** Répartit les tranches en rangées qui tiennent dans la largeur (mesurée), comme les planches d'une vraie bibliothèque. */
 export function splitRows(widths: number[], avail: number, firstReserve = 0): number[][] {
@@ -41,7 +40,7 @@ export function splitRows(widths: number[], avail: number, firstReserve = 0): nu
 
 /* Une étagère : autant de planches que nécessaire. Au-delà de deux planches, la suite se replie
    en une petite pile « +N » au bout de la dernière planche ; un clic la déplie. */
-function Shelf({ k, books, empty, obj }: { k: string; books: UserBook[]; empty: string; obj?: string }) {
+function Shelf({ k, books, empty }: { k: string; books: UserBook[]; empty: string }) {
   const ref = useRef<HTMLDivElement>(null)
   const [w, setW] = useState(0)
   const [open, setOpen] = useState(false)
@@ -53,22 +52,22 @@ function Shelf({ k, books, empty, obj }: { k: string; books: UserBook[]; empty: 
     return () => ro.disconnect()
   }, [])
   const avail = Math.max(120, w - PAD)
-  const rows = w ? splitRows(books.map(spineWidth), avail, obj ? OBJ_W : 0) : [books.map((_, i) => i)]
+  const rows = w ? splitRows(books.map(spineWidth), avail) : [books.map((_, i) => i)]
   let shown = open ? rows : rows.slice(0, MAX_ROWS)
   let hidden: number[] = []
   if (!open && rows.length > MAX_ROWS) {
     // Place pour la pile « +N » au bout de la dernière planche visible.
     const last = [...shown[MAX_ROWS - 1]]
-    const width = (ids: number[]) => ids.reduce((a, i) => a + spineWidth(books[i]) + GAP, 0) + (shown.length === 1 && obj ? OBJ_W : 0)
+    const width = (ids: number[]) => ids.reduce((a, i) => a + spineWidth(books[i]) + GAP, 0)
     while (last.length > 1 && width(last) + MORE_W > avail) hidden.unshift(last.pop()!)
     shown = [...shown.slice(0, MAX_ROWS - 1), last]
     hidden = [...hidden, ...rows.slice(MAX_ROWS).flat()]
   }
   return (
     <div ref={ref} className="shelf-stack">
-      {!books.length && <div className={`shelf ${k}`} data-drop={k}><p className="empty small">{empty}</p>{obj && <span className="obj" aria-hidden="true" dangerouslySetInnerHTML={{ __html: obj }} />}</div>}
+      {!books.length && <div className={`shelf ${k}`} data-drop={k} data-perch={`etagere:${k}:0`} data-perch-floor=""><p className="empty small">{empty}</p></div>}
       {shown.map((row, r) => (
-        <div key={r} className={`shelf ${k}`} data-drop={k}>
+        <div key={r} className={`shelf ${k}`} data-drop={k} data-perch={`etagere:${k}:${r}`} data-perch-floor="">
           {row.map((i) => <Spine key={books[i].id} b={books[i]} pct={pct(books[i])} />)}
           {r === shown.length - 1 && hidden.length > 0 && (
             <button type="button" className="more-pile" onClick={() => setOpen(true)} aria-label={`Afficher les ${hidden.length} autres livres`}>
@@ -76,7 +75,6 @@ function Shelf({ k, books, empty, obj }: { k: string; books: UserBook[]; empty: 
               <b>+{hidden.length}</b>
             </button>
           )}
-          {r === 0 && obj && <span className="obj" aria-hidden="true" dangerouslySetInnerHTML={{ __html: obj }} />}
         </div>
       ))}
       {open && rows.length > MAX_ROWS && <button type="button" className="btn ghost sm" onClick={() => setOpen(false)} style={{ marginTop: 8 }}>Replier l’étagère</button>}
@@ -107,8 +105,6 @@ export default function Library({ onAdd, onOpen }: { onAdd: () => void; onOpen: 
   )
   // Seuls les genres présents dans la bibliothèque sont proposés au filtre, dans l'ordre des familles.
   const presentGenres = useMemo(() => { const set = new Set(st.books.flatMap(genresOf)); return GENRES.filter((g) => set.has(g)) }, [st.books])
-  const objId = equippedItem(st.profile.equipped, 'obj').id
-  const obj = OBJ_SVG[objId]
   const count = (s: Status) => st.books.filter((b) => b.status === s).length
   const aside = count('pause') + count('abandon')
   const fin = count('fini')
@@ -273,7 +269,7 @@ export default function Library({ onAdd, onOpen }: { onAdd: () => void; onOpen: 
       </div>
 
       {!st.books.length ? (
-        <div className="panel stack" style={{ marginTop: 24 }}>
+        <div className="panel stack" style={{ marginTop: 24 }} data-perch="zone:bibliotheque-vide">
           <h2>Ta bibliothèque est vide</h2>
           <p className="muted">Commence par les livres que tu as déjà ouverts, même pas finis. Ils ont leur étagère.</p>
           <div className="row"><button className="btn primary" onClick={onAdd}>Ajouter un livre</button></div>
@@ -303,7 +299,7 @@ export default function Library({ onAdd, onOpen }: { onAdd: () => void; onOpen: 
                     <h3>{g.label} <span className="muted num" style={{ fontWeight: 400 }}>{bs.length}</span></h3>
                     {g.key === 'aside' && <span className="muted small">Ils comptent aussi. Un livre abandonné, c’est de la place pour le suivant.</span>}
                   </div>
-                  <Shelf k={g.key} books={bs} obj={g.key === 'cours' ? obj : undefined}
+                  <Shelf k={g.key} books={bs}
                     empty={q || genre ? 'Rien ne correspond à ta recherche.' : g.key === 'cours' ? 'Rien en cours. Glisse ici un livre de ta pile.' : 'Dépose un livre ici.'} />
                 </div>
               )

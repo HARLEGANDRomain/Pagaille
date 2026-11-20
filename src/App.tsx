@@ -14,6 +14,8 @@ import AddBook, { type AddInitial } from './components/AddBook'
 import ChatPanel from './components/ChatPanel'
 import BookDialog from './components/BookDialog'
 import Scene from './components/Scene'
+import Desk from './components/Desk'
+import { initDesk } from './lib/trinkets/desk'
 import type { DiscoverPick } from './views/Discover'
 import type { Circle, UserBook } from './types'
 
@@ -113,8 +115,11 @@ function Shell() {
   })
   const [add, setAdd] = useState<{ initial?: AddInitial } | null>(null)
   const wide = useWide(1400)
+  const phone = !useWide(861)
   const [open, setOpen] = useState<string | null>(null)
   const [scene, setScene] = useState<{ book: UserBook; circle: Circle | null } | null>(null)
+
+  initDesk(st.uid, st.profile.equipped?.obj) // une seule fois par compte ; reprend l'objet porté avant cette version
 
   const isNew = !onboarded && st.books.length === 0 && st.sessions.length === 0 && st.profile.tastes.length === 0
   if (isNew) {
@@ -138,7 +143,8 @@ function Shell() {
     <>
       {!online && <div className="offline" role="status">Hors ligne. Tes lectures sont gardées sur l’appareil et partiront au retour du réseau.</div>}
       <div className={`app${docked ? ' docked' : ''}`}>
-        <aside className="rail">
+        {/* Perchoir « nav » : la barre du bas sur téléphone, le pied du rail sur ordinateur (le haut du rail est le haut de l'écran). */}
+        <aside className="rail" data-perch={phone ? 'nav' : undefined} data-perch-fixed="">
           <div className="logo" aria-label="Pagaille"><i /><i /><i />Pagaille</div>
           <nav className="nav" aria-label="Navigation principale">
             {(Object.keys(ROUTES) as (keyof typeof ROUTES)[]).map((k) => (
@@ -148,7 +154,7 @@ function Shell() {
               </a>
             ))}
           </nav>
-          <div className="rail-foot">
+          <div className="rail-foot" data-perch="nav" data-perch-fixed="">
             <a className="wallet" href="#boutique" aria-current={route === 'boutique' ? 'page' : undefined} title="Ouvrir la boutique"><span className="signet" aria-hidden="true" /><span className="num">{st.signets}</span> <span className="muted small" style={{ fontWeight: 400 }}>signets · boutique</span></a>
           </div>
         </aside>
@@ -167,6 +173,7 @@ function Shell() {
       {add && <AddBook initial={add.initial} onClose={() => setAdd(null)} />}
       {open && <BookDialog id={open} onClose={() => setOpen(null)} onRead={(b) => start(b)} />}
       {scene && <Scene book={scene.book} circle={scene.circle} onClose={() => setScene(null)} />}
+      {!scene && <Desk route={route} />}
     </>
   )
 }

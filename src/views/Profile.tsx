@@ -79,12 +79,12 @@ export default function Profile() {
         </div>
       </section>
 
-      <section className="panel row" style={{ justifyContent: 'space-between', marginBottom: 24 }}>
+      <section className="panel row" style={{ justifyContent: 'space-between', marginBottom: 24 }} data-perch="zone:profil">
         <div><h2>{st.signets} signets</h2><p className="muted small">Gagnés en lisant, à dépenser en étagères, objets et ambiances.</p></div>
         <a className="btn primary" href="#boutique" style={{ textDecoration: 'none' }}>Ouvrir la boutique</a>
       </section>
 
-      <section className="panel stack" style={{ maxWidth: 640 }}>
+      <section className="panel stack" style={{ maxWidth: 640 }} data-perch="zone:reglages">
         <h2>Réglages</h2>
         <form className="stack" onSubmit={(e) => { e.preventDefault(); if (name.trim() && name.trim() !== p.display_name) void save({ display_name: name.trim() }, 'Prénom mis à jour.') }}>
           <label className="field">Prénom affiché

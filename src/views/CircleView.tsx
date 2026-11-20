@@ -38,12 +38,12 @@ function Start() {
         <p className="muted" style={{ marginTop: 8, maxWidth: '62ch' }}>Un cercle est un petit groupe privé (12 personnes au plus), sur invitation. On additionne les pages de la semaine, on discute, on lit en même temps. Pas de classement.</p>
       </div></div>
       <div className="cols" style={{ gridTemplateColumns: 'repeat(auto-fit,minmax(280px,1fr))' }}>
-        <form className="panel stack" onSubmit={join} noValidate>
+        <form className="panel stack" onSubmit={join} noValidate data-perch="zone:rejoindre">
           <h2>J’ai un code d’invitation</h2>
           <label className="field">Code<input value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} autoCapitalize="characters" autoComplete="off" spellCheck={false} maxLength={12} placeholder="K7M2QX9A" style={{ letterSpacing: '.18em', fontWeight: 700 }} /></label>
           <button className="btn primary" disabled={busy}>Rejoindre</button>
         </form>
-        <form className="panel stack" onSubmit={create} noValidate>
+        <form className="panel stack" onSubmit={create} noValidate data-perch="zone:creer">
           <h2>Créer un cercle</h2>
           <label className="field">Nom du cercle<input value={name} onChange={(e) => setName(e.target.value)} maxLength={60} placeholder="Les Lents Lecteurs" /></label>
           <button className="btn" disabled={busy}>Créer</button>
@@ -147,7 +147,7 @@ function CircleDetail({ circle, onStart }: { circle: Circle; onStart: (c: Circle
       <Err>{error}</Err>
       <div className="cols">
         <div>
-          <section className="panel stack">
+          <section className="panel stack" data-perch="zone:cercle-a">
             <h2>Cette semaine : {total} pages sur {circle.weekly_goal_pages}</h2>
             <Bar v={total} g={circle.weekly_goal_pages} mark />
             <p className="muted small">{total >= circle.weekly_goal_pages ? 'Objectif du cercle atteint. Bravo à tous.' : `Jour ${days} sur 7. Chaque page de chacun compte pour le groupe.`}</p>
@@ -179,12 +179,12 @@ function CircleDetail({ circle, onStart }: { circle: Circle; onStart: (c: Circle
         </div>
 
         <div className="stack" style={{ gap: 24 }}>
-          <section className="panel stack">
+          <section className="panel stack" data-perch="zone:cercle-b">
             <h2>Discussion</h2>
             <ChatPanel circleId={circle.id} />
           </section>
 
-          <section className="panel stack">
+          <section className="panel stack" data-perch="zone:cercle-c">
             <h2>Membres</h2>
             {members.map((m) => (
               <div className="member" key={m.user_id} style={{ borderTop: 0, padding: '6px 0' }}>

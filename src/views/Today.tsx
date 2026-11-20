@@ -19,14 +19,14 @@ function Pile({ max }: { max: number }) {
   return (
     <div className="pile" style={{ ['--H' as string]: max + 'px', ['--cm' as string]: (k * step).toFixed(2) + 'px' }}>
       <div className="ruler" aria-hidden="true" />
-      <div className="stackv" role="img" aria-label={`Pile de ${fmtCm(cm)}`}>
+      <div className="stackv" role="img" aria-label={`Pile de ${fmtCm(cm)}`} data-perch="pile" data-perch-floor="">
         {nx && <div className="markline"><span>{nx[1]}, {nx[0]} cm</span></div>}
         {bs.map((b) => {
           const [c, f] = spineColors(b.work.title)
           const t = Math.max(3, b.page * CM * k)
           const h = hash(b.work.title)
           return (
-            <div key={b.id} className="slab" title={`${b.work.title}, ${b.page} pages lues`}
+            <div key={b.id} className="slab" data-perch={`pile:${b.id}`} title={`${b.work.title}, ${b.page} pages lues`}
               style={{ ['--c' as string]: c, ['--f' as string]: f, ['--t' as string]: t.toFixed(1) + 'px', ['--w' as string]: 150 + (h % 80) + 'px', ['--x' as string]: ((h >>> 5) % 28) + 'px' }}>
               {t >= 13 ? b.work.title : ''}
             </div>
@@ -142,7 +142,7 @@ export default function Today({ onAdd, onOpen, onStart }: { onAdd: () => void; o
         <div>
           <section>
             {current ? (
-              <div className="now">
+              <div className="now" data-perch="zone:lecture">
                 <Cover title={current.work.title} author={current.work.author} url={coverOf(current)} onClick={() => onOpen(current.id)} />
                 <div className="stack">
                   <div>
@@ -200,21 +200,21 @@ export default function Today({ onAdd, onOpen, onStart }: { onAdd: () => void; o
         </div>
 
         <div className="stack" style={{ gap: 24 }}>
-          <div className="panel">
+          <div className="panel" data-perch="zone:missions">
             <h2>Missions de la semaine</h2>
             <p className="muted small" style={{ margin: '2px 0 8px' }}>Remises à zéro lundi.</p>
             <MissionRow id={DAYS_MISSION.id} label={`Lis ${g} jours différents`} v={ws.days} goal={g} reward={DAYS_MISSION.reward} onClaim={claim} />
             {mission.map((x) => <MissionRow key={x.id} id={x.id} label={x.label} v={x.val(ws)} goal={x.goal} reward={x.reward} onClaim={claim} />)}
           </div>
           {circle ? (
-            <div className="panel stack">
+            <div className="panel stack" data-perch="zone:cercle">
               <div className="row" style={{ justifyContent: 'space-between' }}><h2>{circle.name}</h2><a className="small" href="#cercle" style={{ color: 'inherit' }}>Ouvrir le cercle</a></div>
               <p className="small"><b className="num">{circleTotal} pages sur {circle.weekly_goal_pages}</b> lues à {circleStats?.length ?? '…'} cette semaine.</p>
               <Bar v={circleTotal} g={circle.weekly_goal_pages} mark />
               {current && <div><button className="btn sm" onClick={() => onStart(current, true)}>Lire avec le cercle</button></div>}
             </div>
           ) : (
-            <div className="panel stack">
+            <div className="panel stack" data-perch="zone:cercle">
               <h2>Lire à plusieurs</h2>
               <p className="muted small">Crée un cercle ou rejoins celui d’un ami avec son code d’invitation. On additionne les pages, sans classement.</p>
               <div><a className="btn sm" href="#cercle" style={{ textDecoration: 'none', display: 'inline-block' }}>Ouvrir le cercle</a></div>

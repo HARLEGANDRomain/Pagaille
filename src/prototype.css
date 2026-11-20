@@ -202,8 +202,6 @@ body.dragging .shelf[data-drop]{outline:2px dashed var(--line);outline-offset:1p
 body.dragging .shelf.over{outline-color:var(--ink);background:color-mix(in srgb,var(--mark) 24%,transparent)}
 @keyframes settle{from{transform:translateY(-18px)}60%{transform:translateY(2px)}}
 .spine.dropped{animation:settle .34s ease-out}
-.shelf .obj{height:84px;flex:none;margin-left:auto;color:var(--ink)}
-.swatch .obj{height:40px}
 
 /* la pile : tout ce que tu as lu, mesuré en centimètres */
 .pile{display:grid;grid-template-columns:auto minmax(0,1fr);gap:0 12px;align-items:end;padding-top:22px}

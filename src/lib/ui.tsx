@@ -134,6 +134,7 @@ export function Spine({ b, pct }: { b: UserBook; pct: number }) {
       className={`spine${w < 30 ? ' thin' : ''}`}
       style={{ ['--c' as string]: c, ['--f' as string]: f, ['--w' as string]: w + 'px', ['--h' as string]: ht + 'px', ['--band' as string]: 1 + ((h >>> 9) % 4) + 'px' }}
       data-id={b.id}
+      data-perch={`tranche:${b.id}`}
       title={b.work.title}
       aria-label={`${b.work.title}, ${b.work.author}, ${STATUS_LABEL[b.status]}${b.status === 'cours' ? ', ' + pct + ' %' : ''}`}
     >
