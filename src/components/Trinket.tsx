@@ -12,11 +12,11 @@ export interface TrinketHandle { poke: () => void }
 
 /** Dimensions : la boîte du dessin et la hauteur affichée. Le bas du dessin est le pied de l'objet. */
 export const TRINKETS: Record<string, { vb: [number, number]; h: number }> = {
-  'obj-plante': { vb: [60, 84], h: 58 },
-  'obj-bougie': { vb: [40, 84], h: 54 },
-  'obj-sablier': { vb: [44, 84], h: 52 },
-  'obj-chat': { vb: [84, 60], h: 40 },
-  'obj-globe': { vb: [60, 84], h: 56 },
+  'obj-plante': { vb: [60, 84], h: 84 },
+  'obj-bougie': { vb: [40, 84], h: 78 },
+  'obj-sablier': { vb: [44, 84], h: 74 },
+  'obj-chat': { vb: [84, 60], h: 60 },
+  'obj-globe': { vb: [60, 84], h: 80 },
 }
 export const trinketSize = (id: string, h?: number) => {
   const t = TRINKETS[id]
