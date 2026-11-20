@@ -83,7 +83,7 @@ export function StoreProvider({ session, children }: { session: Session; childre
   const reload = useCallback(async () => {
     try {
       const [p, b, s, n, sg, cl, ci, ow] = await Promise.all([
-        api.getProfile(uid), api.listBooks(), api.listSessions(), api.noteDays(),
+        api.getProfile(uid), api.listBooks(uid), api.listSessions(), api.noteDays(),
         api.signetBalance(uid), api.claimedKeys(), api.listCircles(), api.ownedItems().catch(() => new Set<string>()),
       ])
       setProfile(p); setBooks(b); setSessions(s); setNoteDays(n); setSignets(sg); setClaimed(cl); setCircles(ci); setOwned(ow)
@@ -179,7 +179,7 @@ export function StoreProvider({ session, children }: { session: Session; childre
     flushing.current = true
     let sent = 0
     try {
-      let current = await api.listBooks()
+      let current = await api.listBooks(uid)
       let ss = await api.listSessions(30)
       for (const p of list) {
         const book = current.find((b) => b.id === p.userBookId)

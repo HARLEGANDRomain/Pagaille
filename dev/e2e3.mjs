@@ -39,6 +39,11 @@ for (const [w, h] of [[390, 844], [1280, 800]]) {
     await page.keyboard.press('Escape'); await sleep(300)
   }
 }
+// un ami partage sa bibliothèque : ses livres ne doivent pas apparaître sur mes étagères
+await page.setViewport({ width: 1280, height: 900 })
+await page.goto(URL + '#bibliotheque', { waitUntil: 'networkidle0' }); await sleep(700)
+const lib = await txt()
+ok(!lib.includes('Livre de l’ami') && !/Livre de l.ami/.test(lib), 'bibliothèque : les livres d’un ami ne sont pas affichés chez moi')
 // fiche d'un livre ajouté avec résumé connu
 await page.setViewport({ width: 390, height: 844 })
 await page.goto(URL + '#bibliotheque', { waitUntil: 'networkidle0' }); await sleep(600)

@@ -51,6 +51,9 @@ for (let i = 0; i < 26; i++) {
   db.works.push({ id: 'wx' + i, title: `Livre de test numéro ${i + 1}`, author: 'Auteur ' + i, genre: i % 2 ? 'Polar' : 'Fantasy', ol_work_id: null })
   ub('wx' + i, null, 'fini', 200 + i * 20, 200 + i * 20, { genres: [i % 2 ? 'Polar' : 'Fantasy'] })
 }
+// Un livre d'un ami qui partage sa bibliothèque : la vraie base le renvoie aussi, il ne doit jamais apparaître chez ME.
+db.works.push({ id: 'w-ami', title: 'Livre de l’ami', author: 'Autre Auteur', genre: 'Roman', ol_work_id: null })
+db.user_books.push({ id: 'ub-ami', user_id: 'u-ines', work_id: 'w-ami', edition_id: null, status: 'cours', total_pages: 300, page: 50, rating: null, added_at: ago(1), started_at: null, closed_at: null })
 Object.defineProperty(db, 'owned_items', { get: () => db.signet_ledger.filter((r) => String(r.key).startsWith('buy:')).map((r) => ({ user_id: ME, item_id: String(r.key).slice(4) })) })
 Object.defineProperty(db, 'signet_balance', { get: () => [{ user_id: ME, signets: db.signet_ledger.reduce((a, r) => a + r.delta, 0) }] })
 let seq = 100

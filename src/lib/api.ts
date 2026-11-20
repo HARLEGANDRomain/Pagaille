@@ -23,8 +23,9 @@ export async function updateProfile(uid: string, patch: Partial<Omit<Profile, 'i
 /* ---------- bibliothèque ---------- */
 const BOOK_SELECT = '*, work:works(*), edition:editions(*)'
 
-export async function listBooks(): Promise<UserBook[]> {
-  const r = await supabase.from('user_books').select(BOOK_SELECT).order('added_at', { ascending: false })
+/** Les livres de la personne connectée. Le filtre est indispensable : la base renvoie aussi les livres des membres du cercle qui partagent leur bibliothèque. */
+export async function listBooks(uid: string): Promise<UserBook[]> {
+  const r = await supabase.from('user_books').select(BOOK_SELECT).eq('user_id', uid).order('added_at', { ascending: false })
   return ok(r) as UserBook[]
 }
 
