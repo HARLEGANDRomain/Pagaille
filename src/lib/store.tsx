@@ -4,7 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import type { Session } from '@supabase/supabase-js'
 import { supabase } from './supabase'
 import * as api from './api'
-import { badges as computeBadges, MIN_DAILY_REWARD, iso, reached, pileCm, weekStats, weeksRow, type WeekStats } from './logic'
+import { badges as computeBadges, MIN_DAILY_REWARD, iso, reached, pileCm, weekStats, streakOf, type Streak, type WeekStats } from './logic'
 import { applyCosmetics } from './cosmetics'
 import { drop, enqueue, isNetworkError, pending as pendingOf } from './offline'
 import type { Circle, Profile, SessionRow, Status, UserBook } from '../types'
@@ -24,6 +24,8 @@ interface Store {
   circles: Circle[]
   ws: WeekStats
   row: number
+  /** Série en semaines : longueur, record, paliers, 8 dernières semaines. */
+  streak: Streak
   todayMin: number
   pile: number
   badges: ReturnType<typeof computeBadges>
@@ -220,12 +222,14 @@ export function StoreProvider({ session, children }: { session: Session; childre
     const lastRead = new Map<string, string>()
     for (const x of sessions) if (x.user_book_id && x.created_at > (lastRead.get(x.user_book_id) ?? '')) lastRead.set(x.user_book_id, x.created_at)
     const current = books.filter((b) => b.status === 'cours').sort((a, b) => (lastRead.get(b.id) ?? '').localeCompare(lastRead.get(a.id) ?? ''))[0] ?? null
+    const streak = streakOf(sessions, profile.days_goal)
     return {
       uid, email: session.user.email ?? '', profile, books, sessions, signets, claimed, circles, ws,
-      row: weeksRow(sessions, profile.days_goal),
+      row: streak.row,
+      streak,
       todayMin: sessions.filter((s) => s.day === today).reduce((a, s) => a + s.minutes, 0),
       pile: pileCm(books),
-      badges: computeBadges(books, sessions, weeksRow(sessions, profile.days_goal)),
+      badges: computeBadges(books, sessions, streak.row),
       current, loading, error, reload, setBook, patchProfile, move, pay, signOut,
       recordSession, pendingCount, owned, buy, equip,
     }

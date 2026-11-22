@@ -148,3 +148,21 @@ body.holding-trinket{cursor:grabbing;user-select:none;-webkit-user-select:none}
 .t-stream{stroke-dasharray:1.5 2;animation:t-stream .5s linear infinite}
 @keyframes t-stream{to{stroke-dashoffset:-7}}
 @media (prefers-reduced-motion:reduce){.t-breathe,.t-sway-tail,.t-flicker,.t-halo,.t-leaf,.t-stream{animation:none}}
+
+/* ---------- Série en semaines (Today.tsx, StreakCard) ---------- */
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.streak{display:grid;grid-template-columns:auto minmax(0,1fr);gap:18px;align-items:start;margin-top:18px;padding:16px 18px;border:1.5px solid var(--line);border-radius:14px;max-width:560px}
+.streak-n{display:flex;flex-direction:column;align-items:center;min-width:64px;line-height:1.1;text-align:center}
+.streak-n b{font-size:2.6rem;font-weight:800;line-height:1}
+.streak-n span{color:var(--ink-2);margin-top:4px}
+.streak-body{display:flex;flex-direction:column;gap:10px}
+.streak-weeks{display:grid;grid-template-columns:repeat(8,1fr);gap:6px;list-style:none;margin:0;padding:0;max-width:320px}
+.streak-weeks li{height:12px;border-radius:4px;border:1.5px solid var(--line)}
+.streak-weeks li.kept{background:var(--mark);border-color:var(--mark-ink)}
+.streak-weeks li.cur{outline:2px solid var(--ink);outline-offset:1px}
+@media (max-width:520px){.streak{grid-template-columns:1fr;gap:10px}.streak-n{flex-direction:row;gap:10px;align-items:baseline}.streak-n span br{display:none}}
+
+/* ---------- Mission finale ---------- */
+.mission.final{margin-top:6px;padding:14px;border:1.5px dashed var(--line);border-radius:12px}
+.mission.final.won{border-style:solid;border-color:var(--mark-ink);background:color-mix(in srgb,var(--mark) 22%,transparent)}
+.mission .kicker{display:block;font-size:.72rem;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-2);margin-bottom:2px}

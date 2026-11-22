@@ -44,6 +44,9 @@ ub('w1', 'e1', 'cours', 215, 830); ub('w2', 'e2', 'cours', 100, 235); ub('w3', '
 ub('w5', null, 'fini', 95, 95, { rating: 5 }); ub('w6', null, 'pause', 140, 500); ub('w7', null, 'abandon', 90, 790)
 for (const [n, m, p] of [[9, 22, 25], [8, 12, 13], [6, 15, 18], [5, 25, 30], [3, 10, 11], [1, 18, 21]] as const)
   db.reading_sessions.push({ id: uid(), user_id: ME, user_book_id: db.user_books[0].id, day: day(n), minutes: m, pages_read: p, circle_id: null, created_at: ago(n) })
+// mock.streak : N semaines tenues (4 jours) avant la semaine en cours, pour essayer la série et ses paliers.
+for (let w = 1, sinceMon = (new Date().getDay() + 6) % 7; w <= Number(globalThis.localStorage?.getItem('mock.streak') ?? 0); w++)
+  for (let i = 0; i < 4; i++) db.reading_sessions.push({ id: uid(), user_id: ME, user_book_id: db.user_books[0].id, day: day(sinceMon + 7 * w - i), minutes: 12, pages_read: 10, circle_id: null, created_at: ago(sinceMon + 7 * w - i) })
 db.signet_ledger.push({ id: 1, user_id: ME, key: 'seed', delta: Number(globalThis.localStorage?.getItem('mock.seed') ?? 140) }) // mock.seed : solde de départ pour les essais de la boutique
 
 // Assez de livres pour remplir une étagère sur plusieurs planches.

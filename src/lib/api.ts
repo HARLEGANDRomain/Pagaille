@@ -246,6 +246,8 @@ export async function award(uid: string, key: string, delta: number): Promise<bo
 }
 
 export const missionKey = (id: string) => `mission:${weekId()}:${id}`
+/** Palier de série : une fois par série (identifiée par son premier lundi) et par palier. */
+export const streakKey = (start: string, weeks: number) => `streak:${start}:${weeks}`
 export const ritualKey = () => `ritual:${iso(new Date())}`
 export const closeKey = (userBookId: string, status: Status) => `close:${userBookId}:${status}`
 

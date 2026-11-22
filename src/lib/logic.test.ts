@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   applyPage, badges, escapeLike, hash, iso, monday, nextMark, noteUnlocked, norm, pct, pileCm, reached,
-  spineColors, weekDates, weekId, weekMissions, weekStats, weeksRow,
+  spineColors, weekDates, weekId, weekMissions, weekStats, weeksRow, streakOf, finalProgress, STREAK_STEPS,
 } from './logic'
 
 const d = (s: string) => new Date(s + 'T12:00:00')
@@ -144,5 +144,61 @@ describe('divers', () => {
     )
     expect(b.every((x) => x.got)).toBe(true)
     expect(badges([], [], 0).some((x) => x.got)).toBe(false)
+  })
+})
+
+describe('série en semaines', () => {
+  const day = (iso0: string, n: number) => Array.from({ length: n }, (_, i) => ({ day: new Date(new Date(iso0 + 'T12:00:00').getTime() + i * 864e5).toISOString().slice(0, 10) }))
+  it('identifie la série par son premier lundi', () => {
+    const s = [...day('2026-11-02', 4), ...day('2026-11-09', 4)]
+    const k = streakOf(s, 4, d('2026-11-18'))
+    expect(k.row).toBe(2)
+    expect(k.start).toBe('2026-11-02')
+    expect(k.thisWeek).toBe(false)
+    expect(k.daysLeft).toBe(4)
+  })
+  it('compte les jours restants de la semaine en cours', () => {
+    const s = [...day('2026-11-09', 4), ...day('2026-11-16', 3)]
+    const k = streakOf(s, 4, d('2026-11-20'))
+    expect(k.daysLeft).toBe(1)
+    expect(k.row).toBe(1)
+  })
+  it('garde le record d’une série cassée', () => {
+    const s = [...day('2026-10-05', 4), ...day('2026-10-12', 4), ...day('2026-10-19', 4), ...day('2026-11-09', 4)]
+    const k = streakOf(s, 4, d('2026-11-18'))
+    expect(k.row).toBe(1)
+    expect(k.best).toBe(3)
+    expect(k.start).toBe('2026-11-09')
+  })
+  it('une nouvelle série a un autre identifiant (ses paliers se regagnent)', () => {
+    const a = streakOf([...day('2026-10-05', 4), ...day('2026-10-12', 4)], 4, d('2026-10-14'))
+    const b = streakOf([...day('2026-10-05', 4), ...day('2026-10-12', 4), ...day('2026-11-02', 4), ...day('2026-11-09', 4)], 4, d('2026-11-11'))
+    expect(a.row).toBe(2); expect(b.row).toBe(2)
+    expect(a.start).not.toBe(b.start)
+  })
+  it('donne les paliers atteints et le suivant', () => {
+    const s = [0, 1, 2, 3, 4].flatMap((i) => day(new Date(d('2026-10-12').getTime() + i * 7 * 864e5).toISOString().slice(0, 10), 4))
+    const k = streakOf(s, 4, d('2026-11-12'))
+    expect(k.row).toBe(5)
+    expect(k.steps.map((x) => x.weeks)).toEqual([2, 4])
+    expect(k.next).toEqual(STREAK_STEPS[2])
+  })
+  it('montre les 8 dernières semaines, la semaine en cours en dernier', () => {
+    const k = streakOf(day('2026-11-16', 4), 4, d('2026-11-20'))
+    expect(k.history).toHaveLength(8)
+    expect(k.history[7]).toEqual({ week: '2026-11-16', kept: true })
+    expect(k.history[0].week).toBe('2026-09-28')
+  })
+})
+
+describe('mission finale', () => {
+  const ws = (o: Partial<Parameters<typeof finalProgress>[0]>) => ({ days: 0, dates: new Set<string>(), min: 0, pages: 0, team: 0, add: 0, close: 0, note: 0, ...o })
+  it('compte la mission des jours et les trois missions tournantes', () => {
+    expect(finalProgress(ws({}), 4, d('2026-11-18'))).toEqual({ done: 0, total: 4 })
+    expect(finalProgress(ws({ days: 4 }), 4, d('2026-11-18')).done).toBe(1)
+  })
+  it('est complète quand tout est atteint', () => {
+    const all = ws({ days: 4, min: 99, pages: 99, team: 1, add: 1, close: 1, note: 1 })
+    expect(finalProgress(all, 4, d('2026-11-18'))).toEqual({ done: 4, total: 4 })
   })
 })

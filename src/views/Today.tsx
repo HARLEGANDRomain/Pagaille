@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
-import { missionKey, weekStatsOf } from '../lib/api'
+import { missionKey, streakKey, weekStatsOf } from '../lib/api'
 import { explain } from '../lib/supabase'
 import {
-  DAYS_MISSION, MIN_DAILY_REWARD, fmtCm, fmtMinutes, hash, iso, nextMark, pct, plural, reached, spineColors, totalOf,
+  DAYS_MISSION, FINAL_MISSION, finalProgress, MIN_DAILY_REWARD, fmtCm, fmtMinutes, hash, iso, nextMark, pct, plural, reached, spineColors, totalOf,
   weekDates, weekMissions, CM, applyPage,
 } from '../lib/logic'
 import { Bar, Cover, coverOf, DlgHead, Err, Modal, useToast } from '../lib/ui'
@@ -37,16 +37,66 @@ function Pile({ max }: { max: number }) {
   )
 }
 
-function MissionRow({ id, label, v, goal, reward, onClaim }: { id: string; label: string; v: number; goal: number; reward: number; onClaim: (id: string, r: number) => void }) {
+function MissionRow({ id, label, v, goal, reward, onClaim, final }: { id: string; label: string; v: number; goal: number; reward: number; onClaim: (id: string, r: number) => void; final?: boolean }) {
   const st = useStore()
   const ok = v >= goal
   const done = st.claimed.has(missionKey(id))
   return (
-    <div className="mission">
-      <div><b>{label}</b> <span className="muted small num">{Math.min(v, goal)} / {goal}</span></div>
+    <div className={`mission${final ? ' final' : ''}${final && ok ? ' won' : ''}`}>
+      <div>{final && <span className="kicker">Mission finale</span>}<b>{label}</b> <span className="muted small num">{Math.min(v, goal)} / {goal}</span></div>
       <Bar v={v} g={goal} mark={ok} />
       <div className="act">
         {done ? <span className="done">Récupéré</span> : ok ? <button className="btn primary sm" onClick={() => onClaim(id, reward)}>Récupérer {reward}</button> : <span className="muted small num"><span className="signet" /> {reward}</span>}
+      </div>
+    </div>
+  )
+}
+
+const fmtWeek = (w: string) => new Date(w + 'T12:00:00').toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })
+
+/** La série en semaines : sa longueur, l'état de la semaine en cours, les 8 dernières semaines, les paliers. */
+function StreakCard() {
+  const st = useStore()
+  const toast = useToast()
+  const k = st.streak
+  const g = st.profile.days_goal
+  const claimable = k.start ? k.steps.filter((s) => !st.claimed.has(streakKey(k.start!, s.weeks))) : []
+  async function claim(weeks: number, reward: number) {
+    try {
+      const ok = await st.pay(streakKey(k.start!, weeks), reward)
+      toast(ok ? `Palier de ${weeks} semaines : +${reward} signets` : 'Déjà récupéré.')
+    } catch (e) { toast(explain(e)) }
+  }
+  const status = k.thisWeek
+    ? `Semaine tenue : ${k.row > 1 ? `ta série passe à ${k.row} semaines.` : 'ta série est lancée.'}`
+    : k.row
+      ? `Encore ${plural(k.daysLeft, 'jour')} de lecture d’ici dimanche pour la prolonger.`
+      : `Lis ${plural(k.daysLeft, 'jour')} cette semaine pour lancer une série.`
+  return (
+    <div className="streak" data-perch="zone:serie">
+      <div className="streak-n">
+        <b className="num">{k.row}</b>
+        <span className="small">{k.row > 1 ? 'semaines' : 'semaine'} <br />d’affilée</span>
+      </div>
+      <div className="streak-body">
+        <p className="small"><b>{status}</b></p>
+        <ol className="streak-weeks" aria-label="Les 8 dernières semaines">
+          {k.history.map((h, i) => {
+            const now = i === k.history.length - 1
+            return <li key={h.week} className={`${h.kept ? 'kept' : ''}${now ? ' cur' : ''}`} title={`Semaine du ${fmtWeek(h.week)} : ${h.kept ? 'tenue' : now ? 'en cours' : 'pas tenue'}`}><span className="sr">{`Semaine du ${fmtWeek(h.week)} : ${h.kept ? 'tenue' : now ? 'en cours' : 'pas tenue'}`}</span></li>
+          })}
+        </ol>
+        <p className="muted small">
+          Une semaine compte quand tu lis {g} jours sur 7. Une semaine ratée remet la série à zéro.
+          {k.best > k.row ? ` Ton record : ${plural(k.best, 'semaine')}.` : ''}
+        </p>
+        {claimable.length > 0 ? (
+          <div className="row" style={{ gap: 8 }}>
+            {claimable.map((s) => <button key={s.weeks} className="btn primary sm" onClick={() => void claim(s.weeks, s.reward)}>Palier {s.weeks} semaines : récupérer {s.reward}</button>)}
+          </div>
+        ) : k.next && (
+          <p className="small"><span className="signet" /> Prochain palier : <b>{k.next.weeks} semaines</b>, {k.next.reward} signets <span className="muted">(encore {plural(k.next.weeks - k.row, 'semaine')})</span></p>
+        )}
       </div>
     </div>
   )
@@ -96,7 +146,7 @@ function QuickLog({ book, onClose }: { book: UserBook; onClose: () => void }) {
 export default function Today({ onAdd, onOpen, onStart }: { onAdd: () => void; onOpen: (id: string) => void; onStart: (b: UserBook, team: boolean) => void }) {
   const st = useStore()
   const toast = useToast()
-  const { profile, current, ws, todayMin, row } = st
+  const { profile, current, ws, todayMin } = st
   const [quick, setQuick] = useState(false)
   const [circleStats, setCircleStats] = useState<WeekStat[] | null>(null)
   const circle = st.circles[0] ?? null
@@ -125,6 +175,7 @@ export default function Today({ onAdd, onOpen, onStart }: { onAdd: () => void; o
 
   const m = reached(st.pile)
   const mission = weekMissions()
+  const fin = finalProgress(ws, g)
 
   return (
     <>
@@ -180,7 +231,7 @@ export default function Today({ onAdd, onOpen, onStart }: { onAdd: () => void; o
             <div>
               <h2>Cette semaine, {plural(ws.days, 'jour')} sur {g}</h2>
               <p className="muted small" style={{ marginTop: 4 }}>
-                Rater un jour ne coûte rien. L’objectif, c’est {g} jours sur 7, pas 7 sur 7.{row ? ` ${plural(row, 'semaine')} tenue${row > 1 ? 's' : ''} d’affilée.` : ''}
+                Rater un jour ne coûte rien. L’objectif, c’est {g} jours sur 7, pas 7 sur 7.
               </p>
             </div>
             <div className="week">
@@ -188,6 +239,7 @@ export default function Today({ onAdd, onOpen, onStart }: { onAdd: () => void; o
                 <div key={d} className={`day${ws.dates.has(d) ? ' read' : ''}${d === today ? ' today' : ''}`}><i />{'LMMJVSD'[i]}<span style={{ position: 'absolute', clip: 'rect(0 0 0 0)' }}>{ws.dates.has(d) ? 'lu' : 'pas lu'}</span></div>
               ))}
             </div>
+            <StreakCard />
           </section>
 
           <section className="stack" style={{ gap: 0 }}>
@@ -205,6 +257,7 @@ export default function Today({ onAdd, onOpen, onStart }: { onAdd: () => void; o
             <p className="muted small" style={{ margin: '2px 0 8px' }}>Remises à zéro lundi.</p>
             <MissionRow id={DAYS_MISSION.id} label={`Lis ${g} jours différents`} v={ws.days} goal={g} reward={DAYS_MISSION.reward} onClaim={claim} />
             {mission.map((x) => <MissionRow key={x.id} id={x.id} label={x.label} v={x.val(ws)} goal={x.goal} reward={x.reward} onClaim={claim} />)}
+            <MissionRow final id={FINAL_MISSION.id} label={`Valide les ${fin.total} missions de la semaine`} v={fin.done} goal={fin.total} reward={FINAL_MISSION.reward} onClaim={claim} />
           </div>
           {circle ? (
             <div className="panel stack" data-perch="zone:cercle">

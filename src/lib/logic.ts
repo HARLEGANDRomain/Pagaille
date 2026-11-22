@@ -118,6 +118,15 @@ export function weekMissions(d: Date = new Date()): Mission[] {
 
 export const DAYS_MISSION = { id: 'days', reward: 60 }
 
+/** Mission finale : validée quand toutes les autres missions de la semaine sont atteintes (récupérées ou non). */
+export const FINAL_MISSION = { id: 'final', reward: 100 }
+
+export function finalProgress(ws: WeekStats, daysGoal: number, now: Date = new Date()): { done: number; total: number } {
+  const ms = weekMissions(now)
+  const done = (ws.days >= daysGoal ? 1 : 0) + ms.filter((m) => m.val(ws) >= m.goal).length
+  return { done, total: ms.length + 1 }
+}
+
 export interface WeekInput {
   sessions: Pick<SessionRow, 'day' | 'minutes' | 'pages_read' | 'circle_id'>[]
   books: Pick<UserBook, 'added_at' | 'closed_at' | 'status'>[]
@@ -143,11 +152,43 @@ export function weekStats({ sessions, books, noteDates }: WeekInput, now: Date =
   }
 }
 
+/* ---------- série en semaines ---------- */
+
+/** Paliers de la série : un bonus ponctuel quand la série atteint ce nombre de semaines d'affilée. */
+export const STREAK_STEPS: { weeks: number; reward: number }[] = [
+  { weeks: 2, reward: 50 },
+  { weeks: 4, reward: 100 },
+  { weeks: 8, reward: 200 },
+  { weeks: 12, reward: 300 },
+  { weeks: 26, reward: 500 },
+  { weeks: 52, reward: 1000 },
+]
+
+export interface Streak {
+  /** Semaines tenues d'affilée (objectif de jours atteint). */
+  row: number
+  /** Lundi de la première semaine de la série en cours (identifie la série : ses paliers ne se récupèrent qu'une fois). */
+  start: string | null
+  /** Plus longue série jamais tenue, celle en cours comprise. */
+  best: number
+  /** La semaine en cours est déjà tenue. */
+  thisWeek: boolean
+  /** Jours de lecture encore nécessaires cette semaine pour la tenir. */
+  daysLeft: number
+  /** Les 8 dernières semaines, la plus ancienne d'abord, la semaine en cours en dernier. */
+  history: { week: string; kept: boolean }[]
+  /** Paliers atteints par la série en cours. */
+  steps: { weeks: number; reward: number }[]
+  /** Prochain palier, s'il en reste un. */
+  next: { weeks: number; reward: number } | null
+}
+
 /**
  * Série comptée en semaines : combien de semaines d'affilée ont tenu l'objectif de jours.
  * La semaine en cours compte dès qu'elle est tenue, mais ne casse jamais la série tant qu'elle n'est pas finie.
+ * Une semaine passée qui n'a pas été tenue remet la série à zéro.
  */
-export function weeksRow(sessions: Pick<SessionRow, 'day'>[], daysGoal: number, now: Date = new Date()): number {
+export function streakOf(sessions: Pick<SessionRow, 'day'>[], daysGoal: number, now: Date = new Date()): Streak {
   const perWeek = new Map<string, Set<string>>()
   for (const s of sessions) {
     const w = weekId(new Date(s.day + 'T12:00:00'))
@@ -156,10 +197,33 @@ export function weeksRow(sessions: Pick<SessionRow, 'day'>[], daysGoal: number, 
   }
   const kept = (w: string) => (perWeek.get(w)?.size ?? 0) >= daysGoal
   const cur = monday(now)
-  let n = kept(iso(cur)) ? 1 : 0
-  for (let i = 1; kept(iso(addDays(cur, -7 * i))); i++) n++
-  return n
+  const wk = (i: number) => iso(addDays(cur, -7 * i)) // i semaines avant la semaine en cours
+  const thisWeek = kept(wk(0))
+  let row = thisWeek ? 1 : 0, start: string | null = thisWeek ? wk(0) : null
+  for (let i = 1; kept(wk(i)); i++) { row++; start = wk(i) }
+
+  // Record : on parcourt toutes les semaines depuis la première lecture.
+  let best = row
+  const first = [...perWeek.keys()].sort()[0]
+  if (first) {
+    let run = 0
+    for (let d = new Date(first + 'T12:00:00'); iso(d) <= iso(cur); d = addDays(d, 7)) {
+      run = kept(iso(d)) ? run + 1 : 0
+      best = Math.max(best, run)
+    }
+  }
+  const history = Array.from({ length: 8 }, (_, k) => { const w = wk(7 - k); return { week: w, kept: kept(w) } })
+  return {
+    row, start, best, thisWeek,
+    daysLeft: Math.max(0, daysGoal - (perWeek.get(wk(0))?.size ?? 0)),
+    history,
+    steps: STREAK_STEPS.filter((s) => s.weeks <= row),
+    next: STREAK_STEPS.find((s) => s.weeks > row) ?? null,
+  }
 }
+
+export const weeksRow = (sessions: Pick<SessionRow, 'day'>[], daysGoal: number, now: Date = new Date()) =>
+  streakOf(sessions, daysGoal, now).row
 
 export const MIN_DAILY_REWARD = 10
 

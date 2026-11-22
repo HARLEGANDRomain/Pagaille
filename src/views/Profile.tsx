@@ -62,7 +62,7 @@ export default function Profile() {
           <div><b className="num">{pages}</b><span className="muted small">pages lues</span></div>
           <div><b className="num">{finished}</b><span className="muted small">livre{finished > 1 ? 's' : ''} terminé{finished > 1 ? 's' : ''}</span></div>
           <div><b className="num">{Math.round(minutes / 60 * 10) / 10}</b><span className="muted small">heures de lecture</span></div>
-          <div><b className="num">{st.row}</b><span className="muted small">{st.row > 1 ? 'semaines tenues d’affilée' : 'semaine tenue d’affilée'}</span></div>
+          <div><b className="num">{st.row}</b><span className="muted small">{st.row > 1 ? 'semaines tenues d’affilée' : 'semaine tenue d’affilée'}{st.streak.best > st.row ? `, record ${st.streak.best}` : ''}</span></div>
           <div><b className="num">{st.signets}</b><span className="muted small"><span className="signet" /> signets</span></div>
         </div>
         {nx && <p className="muted small" style={{ marginTop: 10 }}>Prochain repère : {nx[1]}, à {nx[0]} cm.</p>}
