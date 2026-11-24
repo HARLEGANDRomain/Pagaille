@@ -6,6 +6,7 @@ import { supabase } from './supabase'
 import * as api from './api'
 import { badges as computeBadges, MIN_DAILY_REWARD, iso, reached, pileCm, weekStats, streakOf, type Streak, type WeekStats } from './logic'
 import { applyCosmetics } from './cosmetics'
+import { bestStreakReward } from './trinkets/variants'
 import { drop, enqueue, isNetworkError, pending as pendingOf } from './offline'
 import type { Circle, Profile, SessionRow, Status, UserBook } from '../types'
 
@@ -41,8 +42,15 @@ interface Store {
   /** Enregistre une lecture ; sans réseau, elle est gardée sur l'appareil et envoyée plus tard. */
   recordSession: (book: UserBook, input: { minutes: number; page: number | null; circleId?: string | null }) => Promise<Recorded>
   pendingCount: number
+  /** Articles possédés ; pour les objets, un id par exemplaire (« obj-chat », « obj-chat#2 »…). */
   owned: Set<string>
-  buy: (item: string) => Promise<void>
+  /** Achète un article ; pour un objet, renvoie l'id du nouvel exemplaire. */
+  buy: (item: string) => Promise<string>
+  /** Couleur de chaque exemplaire d'objet (absente : celle d'origine). */
+  variants: Record<string, string>
+  setVariant: (copy: string, variant: string) => Promise<void>
+  /** Plus long palier de série atteint : débloque les variantes rares. */
+  bestStreak: number
   equip: (item: string) => Promise<void>
   signOut: () => Promise<void>
 }
@@ -80,15 +88,19 @@ export function StoreProvider({ session, children }: { session: Session; childre
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [owned, setOwned] = useState<Set<string>>(new Set())
+  const [variants, setVariants] = useState<Record<string, string>>({})
+  const ownedRef = useRef(owned)
+  ownedRef.current = owned
   const [pendingCount, setPendingCount] = useState(() => pendingOf(uid).length)
 
   const reload = useCallback(async () => {
     try {
-      const [p, b, s, n, sg, cl, ci, ow] = await Promise.all([
+      const [p, b, s, n, sg, cl, ci, ow, va] = await Promise.all([
         api.getProfile(uid), api.listBooks(uid), api.listSessions(), api.noteDays(),
         api.signetBalance(uid), api.claimedKeys(), api.listCircles(), api.ownedItems().catch(() => new Set<string>()),
+        api.trinketVariants().catch(() => ({})), // avant la migration des variantes : tout reste à la couleur d'origine
       ])
-      setProfile(p); setBooks(b); setSessions(s); setNoteDays(n); setSignets(sg); setClaimed(cl); setCircles(ci); setOwned(ow)
+      setProfile(p); setBooks(b); setSessions(s); setNoteDays(n); setSignets(sg); setClaimed(cl); setCircles(ci); setOwned(ow); setVariants(va)
       setError('')
     } catch (e) {
       setError((e as { message?: string }).message ?? 'Chargement impossible')
@@ -139,8 +151,21 @@ export function StoreProvider({ session, children }: { session: Session; childre
 
   const buy = useCallback(async (item: string) => {
     const left = await api.buyItem(item)
-    setSignets(left); setOwned((o) => new Set(o).add(item))
+    setSignets(left)
+    if (!item.startsWith('obj-')) { setOwned((o) => new Set(o).add(item)); return item }
+    // Un objet peut s'acheter plusieurs fois : la base choisit le numéro d'exemplaire, on relit la liste.
+    const before = ownedRef.current
+    const now = await api.ownedItems()
+    setOwned(now)
+    return [...now].find((k) => !before.has(k) && k.split('#')[0] === item) ?? item
   }, [])
+  const setVariant = useCallback(async (copy: string, variant: string) => {
+    let before: string | undefined
+    setVariants((v) => { before = v[copy]; return { ...v, [copy]: variant } })
+    try { await api.setVariant(copy, variant) }
+    catch (e) { setVariants((v) => { const n = { ...v }; if (before) n[copy] = before; else delete n[copy]; return n }); throw e }
+  }, [])
+  const bestStreak = useMemo(() => bestStreakReward(claimed), [claimed])
   const equip = useCallback(async (item: string) => {
     const eq = await api.equipItem(item)
     setProfile((x) => (x ? { ...x, equipped: eq } : x))
@@ -231,9 +256,9 @@ export function StoreProvider({ session, children }: { session: Session; childre
       pile: pileCm(books),
       badges: computeBadges(books, sessions, streak.row),
       current, loading, error, reload, setBook, patchProfile, move, pay, signOut,
-      recordSession, pendingCount, owned, buy, equip,
+      recordSession, pendingCount, owned, buy, equip, variants, setVariant, bestStreak,
     }
-  }, [uid, session, profile, books, sessions, noteDays, signets, claimed, circles, loading, error, reload, setBook, patchProfile, move, pay, signOut, recordSession, pendingCount, owned, buy, equip])
+  }, [uid, session, profile, books, sessions, noteDays, signets, claimed, circles, loading, error, reload, setBook, patchProfile, move, pay, signOut, recordSession, pendingCount, owned, buy, equip, variants, setVariant, bestStreak])
 
   if (!value) {
     return (

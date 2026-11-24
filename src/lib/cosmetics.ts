@@ -15,7 +15,7 @@ export interface Item {
 
 export const SLOTS: { slot: Slot; label: string; help: string }[] = [
   { slot: 'shelf', label: 'Bois des étagères', help: 'La couleur des planches de ta bibliothèque.' },
-  { slot: 'obj', label: 'Objets', help: 'Sors-en autant que tu veux. Attrape-les pour les poser sur la barre de navigation, une carte, ta pile ou un livre ; touche-les pour les faire réagir. Leur place est retenue sur cet appareil.' },
+  { slot: 'obj', label: 'Objets', help: 'Choisis leur couleur, prends-en jusqu’à 3 de chaque. Attrape-les pour les poser sur la barre de navigation, une carte, ta pile ou un livre ; touche-les pour les faire réagir. Leur place est retenue sur cet appareil. Les variantes rares se gagnent avec les séries.' },
   { slot: 'scene', label: 'Ambiance de lecture', help: 'Le décor animé pendant le chrono.' },
   { slot: 'acc', label: 'Surligneur', help: 'La couleur d’accent de l’appli : boutons, rubans, jours lus.' },
 ]

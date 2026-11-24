@@ -92,7 +92,7 @@ try {
   const sizes = await p.evaluate(() => [...document.querySelectorAll('.free-obj svg')].map((s) => Math.round(s.getBoundingClientRect().height)))
   ok(sizes.length === 2 && sizes.every((h) => h > 60), 'chat et globe sortis, taille normale : ' + sizes.join(', '))
   const f = await p.evaluate(() => getComputedStyle(document.querySelector('.free-obj svg')).filter)
-  ok(/drop-shadow/.test(f), 'contour clair appliqué aux objets')
+  ok(f === 'none', 'pas de contour autour des objets (retiré le 24/11 : le chat noir reste discret dans le noir)')
   await p.screenshot({ path: '/tmp/shots6/tel-sombre.png' })
   await p.evaluate(() => { location.hash = '#boutique' }); await sleep(200)
   await card(p, 'Lilas', 'Essayer'); await sleep(200)

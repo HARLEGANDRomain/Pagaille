@@ -4,6 +4,7 @@ import { applyCosmetics, equippedItem, ITEMS, SLOTS, itemById, type Item } from 
 import { ScenePreview } from '../components/Scene'
 import { Trinket, type TrinketHandle } from '../components/Trinket'
 import { desk, useDesk } from '../lib/trinkets/desk'
+import { copiesOf, copyNo, MAX_COPIES, maxOut, unlocked, VARIANTS, variantOf } from '../lib/trinkets/variants'
 import { Bar, useToast } from '../lib/ui'
 import { useStore } from '../lib/store'
 
@@ -11,12 +12,98 @@ import { useStore } from '../lib/store'
    (rituel du jour, missions, livres terminés ou abandonnés). Le serveur vérifie le prix et le solde. */
 
 /** Aperçu vivant d'un objet : on peut déjà le toucher pour voir sa réaction avant de l'acheter. */
-function ObjPreview({ id }: { id: string }) {
+function ObjPreview({ id, variant }: { id: string; variant?: string }) {
   const t = useRef<TrinketHandle>(null)
   return (
     <button type="button" className="swatch-obj" onClick={() => t.current?.poke()} aria-label="Essayer l’objet" title="Touche-le">
-      <Trinket id={id} h={70} ref={t} />
+      <Trinket id={id} h={70} ref={t} variant={variant} />
     </button>
+  )
+}
+
+/** Un objet : ses couleurs, ses exemplaires (jusqu'à 3), « Sortir / Ranger » pour chacun. */
+function ObjCard({ it }: { it: Item }) {
+  const st = useStore()
+  const toast = useToast()
+  const d = useDesk()
+  const copies = copiesOf(it.id, st.owned)
+  const [pick, setPick] = useState<string | null>(null)
+  const sel = pick && copies.includes(pick) ? pick : copies[0] ?? null
+  const [look, setLook] = useState<string | null>(null) // couleur regardée sans être appliquée (pas encore achetée, ou verrouillée)
+  const [confirm, setConfirm] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const list = VARIANTS[it.id] ?? []
+  const current = variantOf(it.id, sel ? st.variants[sel] : undefined)!
+  const shown = variantOf(it.id, look ?? current.id)!
+  const short = st.signets < it.price
+  const full = copies.length >= MAX_COPIES
+  const out = sel ? d.out.includes(sel) : false
+  const anyOut = copies.some((c) => d.out.includes(c))
+
+  async function choose(v: (typeof list)[number]) {
+    if (!sel || !unlocked(v, st.bestStreak)) { setLook(v.id === current.id && !sel ? null : v.id); return }
+    setLook(null)
+    if (v.id === current.id) return
+    try { await st.setVariant(sel, v.id) } catch (e) { toast(explain(e)) }
+  }
+  function toggle(copy: string, on: boolean) {
+    if (!desk.setOut(copy, on, maxOut())) toast(`Déjà ${maxOut()} objets sortis sur cet écran. Range-en un pour sortir celui-ci.`)
+  }
+  async function buy() {
+    setBusy(true)
+    try {
+      const fresh = await st.buy(it.id)
+      const want = look ? list.find((v) => v.id === look) : undefined
+      if (want && unlocked(want, st.bestStreak) && want.id !== list[0].id) await st.setVariant(fresh, want.id).catch(() => { })
+      setPick(fresh); setLook(null)
+      toast(`« ${it.name} » acheté, ${it.price} signets.`)
+      toggle(fresh, true) // il tombe sur la barre de navigation
+    } catch (e) { toast(explain(e)) } finally { setBusy(false); setConfirm(false) }
+  }
+
+  const lockedLook = look ? list.find((v) => v.id === look && !unlocked(v, st.bestStreak)) : undefined
+  return (
+    <div className={`shop-item${anyOut ? ' on' : ''}`}>
+      <ObjPreview id={it.id} variant={shown.id} />
+      <div><b>{it.name}</b><br /><span className="muted small">{it.blurb}</span></div>
+      <div className="swatches" role="group" aria-label={`Couleur${sel && copies.length > 1 ? ` de l’exemplaire ${copyNo(sel)}` : ''}`}>
+        {list.map((v) => {
+          const locked = !unlocked(v, st.bestStreak)
+          return (
+            <button key={v.id} type="button" className={`swatch-dot${locked ? ' locked' : ''}${v.weeks ? ' rare' : ''}`} style={{ ['--c' as string]: v.swatch }}
+              aria-pressed={shown.id === v.id} aria-label={`${v.name}${locked ? `, se débloque avec une série de ${v.weeks} semaines` : v.weeks ? ', variante rare' : ''}`}
+              title={`${v.name}${locked ? ` · série de ${v.weeks} semaines` : v.weeks ? ' · rare' : ''}`} onClick={() => void choose(v)} />
+          )
+        })}
+        <span className="small muted swatch-name">{shown.name}</span>
+      </div>
+      {lockedLook && <p className="small muted" style={{ margin: 0 }}>Variante rare : se débloque avec une série de {lockedLook.weeks} semaines.</p>}
+      {copies.length > 1 && (
+        <div className="row" style={{ gap: 6 }} role="group" aria-label="Exemplaires">
+          {copies.map((c) => (
+            <button key={c} className="chip sm" aria-pressed={c === sel} onClick={() => { setPick(c); setLook(null) }}>
+              n°{copyNo(c)}{d.out.includes(c) ? ' · sorti' : ''}
+            </button>
+          ))}
+        </div>
+      )}
+      <div className="row" style={{ justifyContent: 'space-between' }}>
+        <span className="small num">{copies.length ? `${copies.length} sur ${MAX_COPIES}` : <><span className="signet" aria-hidden="true" /> {it.price}</>}</span>
+        <span className="row" style={{ gap: 6 }}>
+          {sel && <button className="btn sm" aria-pressed={out} onClick={() => toggle(sel, !out)}>{out ? 'Ranger' : 'Sortir'}</button>}
+          {full ? null : confirm ? (
+            <>
+              <button className="btn primary sm" disabled={busy} onClick={() => void buy()}>Confirmer, {it.price}</button>
+              <button className="btn ghost sm" onClick={() => setConfirm(false)}>Non</button>
+            </>
+          ) : (
+            <button className={`btn ${copies.length ? 'ghost' : 'primary'} sm`} disabled={short} title={short ? `Il te manque ${it.price - st.signets} signets` : copies.length ? `Un autre exemplaire, ${it.price} signets` : undefined} onClick={() => setConfirm(true)}>
+              {short ? `Encore ${it.price - st.signets}` : copies.length ? `+1 · ${it.price}` : 'Acheter'}
+            </button>
+          )}
+        </span>
+      </div>
+    </div>
   )
 }
 
@@ -81,7 +168,6 @@ export default function Shop() {
   const [playing, setPlaying] = useState<string | null>(null)
   const [big, setBig] = useState<string | null>(null)
   const d = useDesk()
-  const isOut = (it: Item) => d.out.includes(it.id)
 
   /* Essai d'un surligneur : appliqué à toute l'appli tant qu'on reste dans la boutique.
      Rien n'est enregistré : quitter l'onglet (la boutique se démonte), recharger ou lancer un autre essai
@@ -109,7 +195,6 @@ export default function Shop() {
         await st.buy(it.id)
         toast(`« ${it.name} » acheté, ${it.price} signets.`)
       }
-      if (it.slot === 'obj') { desk.setOut(it.id, true); return } // il tombe sur la barre de navigation
       await st.equip(it.id)
       if (has(it)) toast(`« ${it.name} » utilisé.`)
     } catch (e) { toast(explain(e)) } finally { setBusy(null); setConfirm(null) }
@@ -168,15 +253,15 @@ export default function Shop() {
           {s.slot === 'acc' && <AccentDemo />}
           <div className="shop-grid">
             {ITEMS.filter((i) => i.slot === s.slot && i.id !== 'obj-rien').map((it) => {
+              if (it.slot === 'obj') return <ObjCard key={it.id} it={it} />
               const owned = has(it), short = !owned && st.signets < it.price
-              const obj = it.slot === 'obj', on = obj ? owned && isOut(it) : worn(it)
+              const on = worn(it)
               const trying = trial === it.id
               return (
                 <div key={it.id} className={`shop-item${on ? ' on' : ''}${trying ? ' trying' : ''}`}>
                   {it.slot === 'shelf' && <div className="swatch-shelf" style={{ ['--plank' as string]: it.vars!['--plank'], ['--plank-edge' as string]: it.vars!['--plank-edge'] }}><i /><i /><i /><i /></div>}
                   {it.slot === 'acc' && <div className="swatch-acc" style={{ ['--m' as string]: it.vars!['--mark'] }}><span>Surligné</span></div>}
                   {it.slot === 'scene' && <ScenePlay id={it.id} playing={playing === it.id} onPlay={(p) => setPlaying(p ? it.id : (cur) => (cur === it.id ? null : cur) as never)} />}
-                  {obj && <ObjPreview id={it.id} />}
                   <div><b>{it.name}</b><br /><span className="muted small">{it.blurb}</span></div>
                   {it.slot === 'scene' && <button className="btn ghost sm" onClick={() => setBig(it.id)}>Voir en grand</button>}
                   {it.slot === 'acc' && !owned && (
@@ -186,8 +271,7 @@ export default function Shop() {
                   )}
                   <div className="row" style={{ justifyContent: 'space-between' }}>
                     <span className="small num">{it.price === 0 ? 'Offert' : owned ? 'À toi' : <><span className="signet" aria-hidden="true" /> {it.price}</>}</span>
-                    {obj && owned ? <button className="btn sm" aria-pressed={on} onClick={() => desk.setOut(it.id, !on)}>{on ? 'Ranger' : 'Sortir'}</button>
-                      : on ? <span className="done">Utilisé</span>
+                    {on ? <span className="done">Utilisé</span>
                       : owned ? <button className="btn sm" disabled={busy === it.id} onClick={() => void act(it)}>Utiliser</button>
                         : confirm === it.id ? (
                           <span className="row" style={{ gap: 6 }}>

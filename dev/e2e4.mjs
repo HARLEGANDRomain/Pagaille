@@ -53,9 +53,9 @@ try {
 
   const candle = await objBox('obj-bougie')
   await page.mouse.click(candle.cx, candle.t + candle.h * 0.7); await sleep(600)
-  ok(await page.evaluate(() => JSON.parse(localStorage.getItem('pagaille.desk.u-me')).candleOff === true), 'clic sur la bougie : elle s’éteint (état retenu)')
+  ok(await page.evaluate(() => JSON.parse(localStorage.getItem('pagaille.desk.u-me')).candlesOff.includes('obj-bougie')), 'clic sur la bougie : elle s’éteint (état retenu)')
   await page.mouse.click(candle.cx, candle.t + candle.h * 0.7); await sleep(900)
-  ok(await page.evaluate(() => JSON.parse(localStorage.getItem('pagaille.desk.u-me')).candleOff === false), 'second clic : elle se rallume')
+  ok(await page.evaluate(() => !JSON.parse(localStorage.getItem('pagaille.desk.u-me')).candlesOff.includes('obj-bougie')), 'second clic : elle se rallume')
 
   // Glisser le chat sur la carte des missions (onglet Aujourd'hui)
   await page.goto(URL + '#aujourdhui', { waitUntil: 'networkidle0' }); await sleep(1500)

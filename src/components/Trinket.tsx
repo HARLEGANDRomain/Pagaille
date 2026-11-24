@@ -1,5 +1,6 @@
-import { useEffect, useId, useImperativeHandle, useRef, type Ref } from 'react'
+import { useEffect, useId, useImperativeHandle, useRef, useState, type Ref } from 'react'
 import { desk, useDesk } from '../lib/trinkets/desk'
+import { variantOf } from '../lib/trinkets/variants'
 
 /* Les objets de la boutique, dessinés en SVG par morceaux (tête, queue, feuilles, flamme, sable…)
    pour animer chaque partie à part.
@@ -57,7 +58,9 @@ function loop(fn: (dt: number) => boolean) {
 const play = (el: Element | null, k: Keyframe[], o: KeyframeAnimationOptions) => el?.animate(k, { fill: 'none', ...o }).finished.catch(() => { })
 
 /* ---------------- Chat ---------------- */
-function Cat({ handle }: { handle: Ref<TrinketHandle> | undefined }) {
+type C = Record<string, string>
+
+function Cat({ handle, c }: { handle: Ref<TrinketHandle> | undefined; c: C }) {
   const head = useRef<SVGGElement>(null), tail = useRef<SVGGElement>(null), earL = useRef<SVGGElement>(null), earR = useRef<SVGGElement>(null)
   const open = useRef<SVGGElement>(null), shut = useRef<SVGGElement>(null)
   const busy = useRef(false)
@@ -85,57 +88,65 @@ function Cat({ handle }: { handle: Ref<TrinketHandle> | undefined }) {
   return (
     <>
       <g className="t-cat-tail" style={at(16, 57)} ref={tail}>
-        <g className="t-sway-tail" style={at(16, 57)}><path d="M17 57c-9 0-13-6-10-13" stroke="#2A2D3A" strokeWidth="5" fill="none" strokeLinecap="round" /></g>
+        <g className="t-sway-tail" style={at(16, 57)}><path d="M17 57c-9 0-13-6-10-13" stroke={c.tail} strokeWidth="5" fill="none" strokeLinecap="round" /></g>
       </g>
-      <path className="t-breathe" style={at(42, 60)} d="M10 60c0-18 12-28 31-28s33 10 33 28z" fill="#2A2D3A" />
+      <path className="t-breathe" style={at(42, 60)} d="M10 60c0-18 12-28 31-28s33 10 33 28z" fill={c.fur} />
+      {c.stripe && <path d="M30 36c2 5 2 10 0 15M40 33c2 6 2 12 0 18M50 34c2 6 2 11 0 16" stroke={c.stripe} strokeWidth="2.4" fill="none" strokeLinecap="round" opacity=".8" />}
       <g ref={head} style={at(54, 42)}>
-        <g ref={earL} style={at(55, 21)}><path d="M51 23l3-13 8 9z" fill="#2A2D3A" /></g>
-        <g ref={earR} style={at(69, 21)}><path d="M64 19l9-9 1 14z" fill="#2A2D3A" /></g>
-        <circle cx="62" cy="30" r="13" fill="#2A2D3A" />
-        <g ref={shut}><path d="M56 31q3 2 5 0M64 31q3 2 5 0" stroke="#E8D9A8" strokeWidth="1.4" fill="none" strokeLinecap="round" /></g>
-        <g ref={open} opacity="0"><circle cx="58.5" cy="31" r="1.9" fill="#E8D9A8" /><circle cx="66.5" cy="31" r="1.9" fill="#E8D9A8" /></g>
-        <path d="M62 34.5l-1.4 1.2h2.8z" fill="#C98B8B" />
+        <g ref={earL} style={at(55, 21)}><path d="M51 23l3-13 8 9z" fill={c.ear} /></g>
+        <g ref={earR} style={at(69, 21)}><path d="M64 19l9-9 1 14z" fill={c.ear} /></g>
+        <circle cx="62" cy="30" r="13" fill={c.fur} />
+        {c.mask && <ellipse cx="62" cy="33" rx="7.5" ry="6.5" fill={c.mask} />}
+        <g ref={shut}><path d="M56 31q3 2 5 0M64 31q3 2 5 0" stroke={c.lid} strokeWidth="1.4" fill="none" strokeLinecap="round" /></g>
+        <g ref={open} opacity="0"><circle cx="58.5" cy="31" r="1.9" fill={c.eye} /><circle cx="66.5" cy="31" r="1.9" fill={c.eye} /></g>
+        <path d="M62 34.5l-1.4 1.2h2.8z" fill={c.nose} />
       </g>
     </>
   )
 }
 
 /* ---------------- Bougie ---------------- */
-function Candle({ handle, uid }: { handle: Ref<TrinketHandle> | undefined; uid: string }) {
-  const { candleOff } = useDesk()
+function Candle({ handle, uid, c, copy }: { handle: Ref<TrinketHandle> | undefined; uid: string; c: C; copy?: string }) {
+  // Sur le bureau, l'état éteint est retenu par exemplaire ; dans un aperçu (boutique), il reste local.
+  const deskOff = useDesk().candlesOff.includes(copy ?? '')
+  const [localOff, setLocalOff] = useState(false)
+  const local = useRef(false)
+  const candleOff = copy ? deskOff : localOff
+  const isOff = () => (copy ? desk.get().candlesOff.includes(copy) : local.current)
+  const setOff = (o: boolean) => { if (copy) desk.setCandleOff(copy, o); else { local.current = o; setLocalOff(o) } }
   const flame = useRef<SVGGElement>(null), halo = useRef<SVGCircleElement>(null), smoke = useRef<SVGPathElement>(null), inner = useRef<SVGGElement>(null)
   const busy = useRef(false)
   useNow(() => {
-    if (busy.current || desk.get().candleOff) return
+    if (busy.current || isOff()) return
     void play(inner.current, [{ transform: 'skewX(0) scaleY(1)' }, { transform: 'skewX(14deg) scaleY(.82)' }, { transform: 'skewX(-9deg) scaleY(1.1)' }, { transform: 'skewX(0) scaleY(1)' }], { duration: 520, easing: 'ease-out' })
   }, 4000, 12000)
   useImperativeHandle(handle, () => ({
     poke() {
       if (busy.current) return
       busy.current = true
-      const off = !desk.get().candleOff
+      const off = !isOff()
       if (off) {
         void play(smoke.current, [{ opacity: 0, transform: 'translateY(0)' }, { opacity: 0.75, transform: 'translateY(-3px)', offset: 0.2 }, { opacity: 0, transform: 'translateY(-14px)' }], { duration: 1500, easing: 'ease-out' })
-        void play(flame.current, [{ transform: 'scale(1)' }, { transform: 'scale(1.15,.6)', offset: 0.4 }, { transform: 'scale(0)' }], { duration: 260, easing: 'ease-in' })!.then(() => { desk.setCandleOff(true); busy.current = false })
+        void play(flame.current, [{ transform: 'scale(1)' }, { transform: 'scale(1.15,.6)', offset: 0.4 }, { transform: 'scale(0)' }], { duration: 260, easing: 'ease-in' })!.then(() => { setOff(true); busy.current = false })
       } else {
-        desk.setCandleOff(false)
+        setOff(false)
         void play(flame.current, [{ transform: 'scale(0)' }, { transform: 'scale(.5,1.3)', offset: 0.45 }, { transform: 'scale(1.18,.9)', offset: 0.7 }, { transform: 'scale(1)' }], { duration: 650, easing: 'ease-out' })!.then(() => { busy.current = false })
       }
     },
   }), [])
   return (
     <>
-      <defs><radialGradient id={`halo${uid}`}><stop offset="0" stopColor="#FFDD3C" stopOpacity=".55" /><stop offset="1" stopColor="#FFDD3C" stopOpacity="0" /></radialGradient></defs>
+      <defs><radialGradient id={`halo${uid}`}><stop offset="0" stopColor={c.halo} stopOpacity=".55" /><stop offset="1" stopColor={c.halo} stopOpacity="0" /></radialGradient></defs>
       <circle ref={halo} className={`t-halo${candleOff ? ' off' : ''}`} style={at(20, 30)} cx="20" cy="30" r="17" fill={`url(#halo${uid})`} />
-      <rect x="12" y="44" width="16" height="39" rx="2" fill="#F1EBDD" stroke="#161D3A" strokeWidth="1.5" />
-      <path d="M13 47c2 0 2 6 4 6s1-5 3-5" stroke="#D9CFB8" strokeWidth="1.4" fill="none" strokeLinecap="round" />
+      <rect x="12" y="44" width="16" height="39" rx="2" fill={c.wax} stroke="#161D3A" strokeWidth="1.5" />
+      <path d="M13 47c2 0 2 6 4 6s1-5 3-5" stroke={c.drip} strokeWidth="1.4" fill="none" strokeLinecap="round" />
       <path d="M20 44v-6" stroke="#161D3A" strokeWidth="1.5" />
       <path ref={smoke} d="M20 37c-3-4 3-7 0-11s3-7 0-11" stroke="#9AA3C4" strokeWidth="1.3" fill="none" strokeLinecap="round" opacity="0" />
       <g ref={flame} style={{ ...at(20, 38), transform: candleOff ? 'scale(0)' : undefined }}>
         <g ref={inner} style={at(20, 38)}>
           <g className="t-flicker" style={at(20, 38)}>
-            <path d="M20 21c5 6 6 11 0 17-6-6-5-11 0-17z" fill="#FFDD3C" stroke="#C9772B" strokeWidth="1.2" />
-            <path d="M20 29c2 3 2.5 5 0 8-2.5-3-2-5 0-8z" fill="#FFF6C8" />
+            <path d="M20 21c5 6 6 11 0 17-6-6-5-11 0-17z" fill={c.flame} stroke={c.edge} strokeWidth="1.2" />
+            <path d="M20 29c2 3 2.5 5 0 8-2.5-3-2-5 0-8z" fill={c.core} />
           </g>
         </g>
       </g>
@@ -150,7 +161,7 @@ const LEAVES: { d: string; o: [number, number]; fill: string }[] = [
   { d: 'M30 44c-10-2-15-9-15-18 9 0 15 7 15 18z', o: [30, 44], fill: '#1F4D45' },
   { d: 'M30 38c9-3 14-11 13-20-9 2-14 10-13 20z', o: [30, 38], fill: '#1F4D45' },
 ]
-function Plant({ handle }: { handle: Ref<TrinketHandle> | undefined }) {
+function Plant({ handle, c }: { handle: Ref<TrinketHandle> | undefined; c: C }) {
   const leaves = useRef<(SVGGElement | null)[]>([])
   const stem = useRef<SVGGElement>(null)
   const busy = useRef(false)
@@ -173,22 +184,22 @@ function Plant({ handle }: { handle: Ref<TrinketHandle> | undefined }) {
   return (
     <>
       <g ref={stem} style={at(30, 60)}>
-        <path d="M30 60V34" stroke="#1F4D45" strokeWidth="2" strokeLinecap="round" />
+        <path d="M30 60V34" stroke={c.leaf2} strokeWidth="2" strokeLinecap="round" />
         {LEAVES.map((l, i) => (
           <g key={i} className={`t-leaf t-leaf${i}`} style={at(...l.o)}>
-            <g ref={(el) => { leaves.current[i] = el }} style={at(...l.o)}><path d={l.d} fill={l.fill} /></g>
+            <g ref={(el) => { leaves.current[i] = el }} style={at(...l.o)}><path d={l.d} fill={l.fill === '#2F6B5E' ? c.leaf : c.leaf2} /></g>
           </g>
         ))}
       </g>
-      <path d="M18 61h24l-3 22H21z" fill="#C9772B" />
-      <rect x="16" y="57" width="28" height="5" rx="1.5" fill="#B5651F" />
+      <path d="M18 61h24l-3 22H21z" fill={c.pot} />
+      <rect x="16" y="57" width="28" height="5" rx="1.5" fill={c.rim} />
     </>
   )
 }
 
 /* ---------------- Sablier ---------------- */
 const GLASS = 'M12 32C12 46 21 50 21 56C21 62 12 66 12 80L32 80C32 66 23 62 23 56C23 50 32 46 32 32Z'
-function Hourglass({ handle, uid }: { handle: Ref<TrinketHandle> | undefined; uid: string }) {
+function Hourglass({ handle, uid, c }: { handle: Ref<TrinketHandle> | undefined; uid: string; c: C }) {
   const flip = useRef<SVGGElement>(null), top = useRef<SVGRectElement>(null), bot = useRef<SVGRectElement>(null), stream = useRef<SVGLineElement>(null)
   const s = useRef(0.4) // part du sable encore en haut
   const rate = useRef(1 / 120) // vitesse d'écoulement (part par seconde) : lente au repos, rapide après un retournement
@@ -233,14 +244,14 @@ function Hourglass({ handle, uid }: { handle: Ref<TrinketHandle> | undefined; ui
       <g ref={flip} style={at(22, 56)}>
         <path d={GLASS} fill="rgba(255,255,255,.4)" />
         <g clipPath={`url(#glass${uid})`}>
-          <rect ref={top} x="10" width="24" fill="#E0B84A" />
-          <rect ref={bot} x="10" width="24" fill="#E0B84A" />
+          <rect ref={top} x="10" width="24" fill={c.sand} />
+          <rect ref={bot} x="10" width="24" fill={c.sand} />
         </g>
-        <line ref={stream} className="t-stream" x1="22" y1="56" x2="22" y2="80" stroke="#E0B84A" strokeWidth="1.2" />
+        <line ref={stream} className="t-stream" x1="22" y1="56" x2="22" y2="80" stroke={c.sand} strokeWidth="1.2" />
         <path d={GLASS} fill="none" stroke="#161D3A" strokeWidth="1.4" />
-        <path d="M9 32v48M35 32v48" stroke="#6B4428" strokeWidth="2" />
-        <rect x="5" y="28" width="34" height="4" rx="1.2" fill="#6B4428" />
-        <rect x="5" y="80" width="34" height="4" rx="1.2" fill="#6B4428" />
+        <path d="M9 32v48M35 32v48" stroke={c.wood} strokeWidth="2" />
+        <rect x="5" y="28" width="34" height="4" rx="1.2" fill={c.wood} />
+        <rect x="5" y="80" width="34" height="4" rx="1.2" fill={c.wood} />
       </g>
     </>
   )
@@ -256,7 +267,7 @@ const LAND = [
   'M66 40c3 0 5 2 4 4s-4 2-5 0-1-4 1-4z',
 ]
 const BAND = 80
-function Globe({ handle, uid }: { handle: Ref<TrinketHandle> | undefined; uid: string }) {
+function Globe({ handle, uid, c }: { handle: Ref<TrinketHandle> | undefined; uid: string; c: C }) {
   const band = useRef<SVGGElement>(null)
   const off = useRef(Math.random() * BAND)
   const v = useRef(0) // vitesse de rotation, unités du dessin par seconde
@@ -293,11 +304,11 @@ function Globe({ handle, uid }: { handle: Ref<TrinketHandle> | undefined; uid: s
         <clipPath id={`sphere${uid}`}><circle cx="30" cy="34" r="20" /></clipPath>
         <radialGradient id={`shade${uid}`} cx="38%" cy="32%" r="70%"><stop offset="0" stopColor="#fff" stopOpacity=".28" /><stop offset=".55" stopColor="#fff" stopOpacity="0" /><stop offset="1" stopColor="#0B1024" stopOpacity=".45" /></radialGradient>
       </defs>
-      <circle cx="30" cy="34" r="20" fill="#5E7F8C" />
+      <circle cx="30" cy="34" r="20" fill={c.sea} />
       <g clipPath={`url(#sphere${uid})`}>
         <g transform="rotate(-18 30 34)">
           <g ref={band}>
-            {[0, BAND].map((dx) => <g key={dx} transform={`translate(${dx} 0)`}>{LAND.map((d, i) => <path key={i} d={d} fill="#2F6B5E" />)}</g>)}
+            {[0, BAND].map((dx) => <g key={dx} transform={`translate(${dx} 0)`}>{LAND.map((d, i) => <path key={i} d={d} fill={c.land} />)}</g>)}
           </g>
         </g>
       </g>
@@ -308,19 +319,22 @@ function Globe({ handle, uid }: { handle: Ref<TrinketHandle> | undefined; uid: s
   )
 }
 
-/** Un objet de la boutique, vivant. `h` : hauteur affichée en px (par défaut, celle de l'objet libre). */
-export function Trinket({ id, h, ref }: { id: string; h?: number; ref?: Ref<TrinketHandle> }) {
+/** Un objet de la boutique, vivant. `h` : hauteur affichée en px (par défaut, celle de l'objet libre).
+    `variant` : sa couleur (celle d'origine par défaut) ; `copy` : l'exemplaire, pour l'état propre à chacun (bougie éteinte). */
+export function Trinket({ id, h, ref, variant, copy }: { id: string; h?: number; ref?: Ref<TrinketHandle>; variant?: string; copy?: string }) {
   const uid = useId().replace(/:/g, '')
   const t = TRINKETS[id]
-  if (!t) return null
+  const v = variantOf(id, variant)
+  if (!t || !v) return null
+  const c = v.c
   const { w, h: hh } = trinketSize(id, h)
   return (
     <svg className="trinket" viewBox={`0 0 ${t.vb[0]} ${t.vb[1]}`} width={w} height={hh} aria-hidden="true" overflow="visible">
-      {id === 'obj-chat' && <Cat handle={ref} />}
-      {id === 'obj-bougie' && <Candle handle={ref} uid={uid} />}
-      {id === 'obj-plante' && <Plant handle={ref} />}
-      {id === 'obj-sablier' && <Hourglass handle={ref} uid={uid} />}
-      {id === 'obj-globe' && <Globe handle={ref} uid={uid} />}
+      {id === 'obj-chat' && <Cat handle={ref} c={c} />}
+      {id === 'obj-bougie' && <Candle handle={ref} uid={uid} c={c} copy={copy} />}
+      {id === 'obj-plante' && <Plant handle={ref} c={c} />}
+      {id === 'obj-sablier' && <Hourglass handle={ref} uid={uid} c={c} />}
+      {id === 'obj-globe' && <Globe handle={ref} uid={uid} c={c} />}
     </svg>
   )
 }

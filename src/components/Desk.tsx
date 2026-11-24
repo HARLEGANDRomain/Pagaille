@@ -4,6 +4,7 @@ import { Trinket, TRINKETS, trinketSize, type TrinketHandle } from './Trinket'
 import { desk, useDesk, type Placement } from '../lib/trinkets/desk'
 import { fractionOn, pointOn, stepFall, stepSlide, throwVelocity, type Body, type Surface } from '../lib/trinkets/physics'
 import { useStore } from '../lib/store'
+import { itemOf } from '../lib/trinkets/variants'
 
 /* Les objets libres : un calque au-dessus de l'appli, qui ne capte les clics que sur les objets.
    Les objets tombent, rebondissent et se posent sur les PERCHOIRS : les éléments marqués data-perch
@@ -52,11 +53,12 @@ function allSurfaces(onlyFixed: boolean): Surface[] {
 
 type Mode = 'wait' | 'rest' | 'fall' | 'drag'
 
-function Free({ id, route, placement, slot, loading }: { id: string; route: string; placement: Placement | undefined; slot: number; loading: boolean }) {
+/** `id` : l'exemplaire (« obj-chat », « obj-chat#2 »…) ; `variant` : sa couleur. */
+function Free({ id, variant, route, placement, slot, loading }: { id: string; variant?: string; route: string; placement: Placement | undefined; slot: number; loading: boolean }) {
   const box = useRef<HTMLDivElement>(null)
   const inner = useRef<HTMLDivElement>(null)
   const poke = useRef<TrinketHandle>(null)
-  const { w, h } = trinketSize(id)
+  const { w, h } = trinketSize(itemOf(id))
   const R = useRef({
     mode: 'wait' as Mode,
     body: { x: 0, y: 0, vx: 0, vy: 0, w } as Body,
@@ -212,7 +214,7 @@ function Free({ id, route, placement, slot, loading }: { id: string; route: stri
     <div ref={box} className="free-obj" style={{ width: w, height: h, opacity: 0 }} data-obj={id}
       onPointerDown={onDown} onPointerMove={onMove} onPointerUp={(e) => release(e, false)} onPointerCancel={(e) => release(e, true)}
       onContextMenu={(e) => e.preventDefault()}>
-      <div ref={inner} className="free-inner"><Trinket id={id} ref={poke} /></div>
+      <div ref={inner} className="free-inner"><Trinket id={itemOf(id)} variant={variant} copy={id} ref={poke} /></div>
     </div>
   )
 }
@@ -221,13 +223,13 @@ function Free({ id, route, placement, slot, loading }: { id: string; route: stri
 export default function Desk({ route }: { route: string }) {
   const st = useStore()
   const d = useDesk()
-  const ids = d.out.filter((id) => TRINKETS[id] && st.owned.has(id))
+  const ids = d.out.filter((id) => TRINKETS[itemOf(id)] && st.owned.has(id))
   return createPortal(
     <>
       {ids.map((id, i) => {
         const p = d.place[id]
         if (p && p.route !== null && p.route !== route) return null // posé dans un autre onglet
-        return <Free key={id} id={id} route={route} placement={p} slot={i} loading={st.loading} />
+        return <Free key={id} id={id} variant={st.variants[id]} route={route} placement={p} slot={i} loading={st.loading} />
       })}
     </>,
     document.body,

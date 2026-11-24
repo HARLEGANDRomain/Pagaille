@@ -1,3 +1,4 @@
+import { VARIANTS, bestStreakReward } from '../src/lib/trinkets/variants'
 /* Faux Supabase en mémoire, utilisé UNIQUEMENT pour les essais d'interface hors ligne (MOCK=1).
    Il imite les tables, les déclencheurs utiles et quelques fonctions ; il ne prouve rien sur la vraie base. */
 export { explain } from '../src/lib/explain'
@@ -28,7 +29,7 @@ const db: Record<string, Row[]> = {
     { id: 'e2', work_id: 'w2', pages: 235, format: 'poche', publisher: 'Folio', cover_url: null, isbn13: null },
     { id: 'e3', work_id: 'w3', pages: 200, format: 'broche', publisher: 'New Riders', cover_url: null, isbn13: null },
   ],
-  user_books: [], private_notes: [], reading_sessions: [], signet_ledger: [], cheers: [],
+  user_books: [], private_notes: [], reading_sessions: [], signet_ledger: [], cheers: [], trinket_variants: [],
   circles: [{ id: 'c1', name: 'Les Lents Lecteurs', invite_code: 'K7M2QX9A', weekly_goal_pages: 250, created_by: 'u-ines' }],
   circle_members: [
     { circle_id: 'c1', user_id: ME, role: 'member' }, { circle_id: 'c1', user_id: 'u-ines', role: 'owner' }, { circle_id: 'c1', user_id: 'u-malo', role: 'member' },
@@ -48,6 +49,7 @@ for (const [n, m, p] of [[9, 22, 25], [8, 12, 13], [6, 15, 18], [5, 25, 30], [3,
 for (let w = 1, sinceMon = (new Date().getDay() + 6) % 7; w <= Number(globalThis.localStorage?.getItem('mock.streak') ?? 0); w++)
   for (let i = 0; i < 4; i++) db.reading_sessions.push({ id: uid(), user_id: ME, user_book_id: db.user_books[0].id, day: day(sinceMon + 7 * w - i), minutes: 12, pages_read: 10, circle_id: null, created_at: ago(sinceMon + 7 * w - i) })
 db.signet_ledger.push({ id: 1, user_id: ME, key: 'seed', delta: Number(globalThis.localStorage?.getItem('mock.seed') ?? 140) }) // mock.seed : solde de départ pour les essais de la boutique
+if (globalThis.localStorage?.getItem('mock.best')) db.signet_ledger.push({ id: 2, user_id: ME, key: `streak:2026-01-05:${globalThis.localStorage.getItem('mock.best')}`, delta: 1 }) // mock.best : palier de série déjà atteint (variantes rares)
 
 // Assez de livres pour remplir une étagère sur plusieurs planches.
 for (let i = 0; i < 26; i++) {
@@ -135,7 +137,24 @@ export const supabase = {
       const prices: Record<string, number> = { 'shelf-noyer': 120, 'obj-plante': 80, 'scene-etoiles': 150, 'acc-menthe': 100, 'obj-chat': 150 }
       const bal = db.signet_ledger.reduce((x, r) => x + r.delta, 0), pr = prices[a.p_item] ?? 100
       if (bal < pr) return { data: null, error: err('Pas assez de signets') }
-      db.signet_ledger.push({ id: ++seq, user_id: ME, key: 'buy:' + a.p_item, delta: -pr }); return { data: bal - pr, error: null }
+      let key = 'buy:' + a.p_item
+      if (db.signet_ledger.some((r) => r.key === key)) { // même règle que la base : jusqu'à 3 exemplaires d'un objet
+        if (!String(a.p_item).startsWith('obj-')) return { data: null, error: err('Tu as déjà cet article') }
+        const n = [2, 3].find((k) => !db.signet_ledger.some((r) => r.key === `${key}#${k}`))
+        if (!n) return { data: null, error: err('Tu as déjà 3 exemplaires de cet objet') }
+        key = `${key}#${n}`
+      }
+      db.signet_ledger.push({ id: ++seq, user_id: ME, key, delta: -pr }); return { data: bal - pr, error: null }
+    }
+    if (fn === 'set_variant') {
+      const item = String(a.p_copy).split('#')[0]
+      const v = (VARIANTS[item] ?? []).find((x) => x.id === a.p_variant)
+      if (!v) return { data: null, error: err('Variante inconnue') }
+      if (!db.signet_ledger.some((r) => r.key === 'buy:' + a.p_copy)) return { data: null, error: err('Exemplaire pas encore acheté') }
+      if (v.weeks > bestStreakReward(db.signet_ledger.map((r) => String(r.key)))) return { data: null, error: err(`Variante rare : il faut une série de ${v.weeks} semaines`) }
+      db.trinket_variants = db.trinket_variants.filter((r) => r.copy_id !== a.p_copy)
+      db.trinket_variants.push({ user_id: ME, copy_id: a.p_copy, variant: a.p_variant })
+      return { data: a.p_variant, error: null }
     }
     if (fn === 'equip_item') { const p = db.profiles[0]; p.equipped = { ...p.equipped, [String(a.p_item).split('-')[0]]: a.p_item }; return { data: p.equipped, error: null } }
     if (fn === 'set_work_synopsis') {

@@ -261,6 +261,17 @@ export async function buyItem(item: string): Promise<number> {
   return ok(await supabase.rpc('buy_item', { p_item: item })) as number
 }
 
+/** Couleur de chaque exemplaire d'objet (table trinket_variants, écrite par set_variant). */
+export async function trinketVariants(): Promise<Record<string, string>> {
+  const r = await supabase.from('trinket_variants').select('copy_id, variant')
+  return Object.fromEntries((ok(r) as { copy_id: string; variant: string }[]).map((x) => [x.copy_id, x.variant]))
+}
+
+/** Change la couleur d'un exemplaire. La base vérifie l'exemplaire et, pour une variante rare, le palier de série. */
+export async function setVariant(copy: string, variant: string): Promise<void> {
+  ok(await supabase.rpc('set_variant', { p_copy: copy, p_variant: variant }))
+}
+
 export async function equipItem(item: string): Promise<Record<string, string>> {
   return ok(await supabase.rpc('equip_item', { p_item: item })) as Record<string, string>
 }
