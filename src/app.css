@@ -81,6 +81,19 @@ dialog.drawer .chatbox.tall{height:calc(100dvh - 140px)}
 .swatch-acc span{font:800 1.3rem/1 var(--display);background:linear-gradient(transparent 45%,var(--m) 45%,var(--m) 88%,transparent 88%);padding:0 4px}
 .swatch-obj{height:84px;display:grid;place-items:center;background:var(--paper);border-radius:6px;color:var(--ink)}
 .scene-preview{width:100%;height:84px;border-radius:6px;display:block}
+.swatch-scene{border:0;padding:0;background:none;width:100%;cursor:pointer;border-radius:6px;display:block}
+.shop-item.trying{border-color:var(--mark-ink);border-style:dashed}
+.trial-bar{position:sticky;top:8px;z-index:30;display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center;justify-content:space-between;margin:0 0 20px;padding:12px 14px;border:1.5px solid var(--mark-ink);border-radius:var(--r);background:color-mix(in srgb,var(--mark) 30%,var(--surface));box-shadow:0 6px 18px rgba(10,15,40,.12)}
+.trial-bar p{margin:0;max-width:60ch}
+.acc-demo{display:flex;flex-wrap:wrap;align-items:center;gap:14px 18px;margin:0 0 16px;padding:14px;border:1px dashed var(--line);border-radius:var(--r);background:var(--surface);pointer-events:none}
+.acc-demo-week{width:240px;gap:5px}.acc-demo-week .day{font-size:.7rem;gap:3px}
+.acc-demo-bar{flex:1 1 160px;min-width:140px}
+.scene-try{position:fixed;inset:0;z-index:120;background:#050816}
+.scene-try-cv{position:absolute;inset:0;width:100%;height:100%;display:block}
+.scene-try-ui{position:absolute;inset:auto 0 0 0;display:grid;justify-items:center;gap:12px;padding:24px 20px max(28px,env(safe-area-inset-bottom));color:#E9ECF6;text-align:center;background:linear-gradient(transparent,rgba(5,8,22,.7))}
+.scene-try-ui p{margin:0;max-width:52ch}
+.scene-try-ui .btn{background:transparent;color:#E9ECF6;border-color:#E9ECF6}
+.scene-try-clock{position:fixed;top:38%;left:0;right:0;font:800 clamp(3rem,12vw,6rem)/1 var(--display);letter-spacing:.02em;opacity:.92}
 
 /* étagères sur plusieurs planches */
 .shelf-stack{display:flex;flex-direction:column;gap:18px}
@@ -128,6 +141,8 @@ dialog.drawer .chatbox.tall{height:calc(100dvh - 140px)}
 .free-inner{width:100%;height:100%;transform-origin:50% 100%;transition:rotate .25s ease-out,scale .15s,filter .15s}
 .free-obj.held .free-inner{transition:scale .15s,filter .15s}
 .free-obj svg,.swatch-obj svg{display:block}
+/* Contour clair autour de chaque objet : sans lui, un objet sombre disparaît sur la barre, le mode sombre ou un bois foncé. */
+.trinket{--halo:rgba(240,243,250,.92);filter:drop-shadow(1.2px 0 0 var(--halo)) drop-shadow(-1.2px 0 0 var(--halo)) drop-shadow(0 1.2px 0 var(--halo)) drop-shadow(0 -1.2px 0 var(--halo))}
 body.holding-trinket{cursor:grabbing;user-select:none;-webkit-user-select:none}
 .swatch-obj{border:0;width:100%;cursor:pointer;font:inherit}
 .swatch-obj .trinket{height:70px;width:auto}

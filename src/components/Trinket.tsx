@@ -16,7 +16,7 @@ export const TRINKETS: Record<string, { vb: [number, number]; h: number }> = {
   'obj-bougie': { vb: [40, 84], h: 98 },
   'obj-sablier': { vb: [44, 84], h: 94 },
   'obj-chat': { vb: [84, 60], h: 80 },
-  'obj-globe': { vb: [60, 84], h: 10 },
+  'obj-globe': { vb: [60, 84], h: 96 },
 }
 export const trinketSize = (id: string, h?: number) => {
   const t = TRINKETS[id]

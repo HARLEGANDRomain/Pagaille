@@ -49,10 +49,13 @@ export const DEFAULTS: Record<Slot, string> = { shelf: 'shelf-chene', obj: 'obj-
 export const itemById = (id: string | undefined) => ITEMS.find((i) => i.id === id)
 export const equippedItem = (eq: Partial<Record<Slot, string>> | undefined, slot: Slot) => itemById(eq?.[slot]) ?? itemById(DEFAULTS[slot])!
 
-/** Applique les couleurs portées (étagères, surligneur) sur toute l'appli. */
-export function applyCosmetics(eq: Partial<Record<Slot, string>> | undefined) {
+/** Applique les couleurs portées (étagères, surligneur) sur toute l'appli.
+    `trial` : un article essayé dans la boutique, appliqué à la place de celui de sa catégorie, sans rien enregistrer. */
+export function applyCosmetics(eq: Partial<Record<Slot, string>> | undefined, trial?: string | null) {
   const root = document.documentElement
+  const t = itemById(trial ?? undefined)
   for (const slot of ['shelf', 'acc'] as Slot[]) {
-    for (const [k, v] of Object.entries(equippedItem(eq, slot).vars ?? {})) root.style.setProperty(k, v)
+    const it = t && t.slot === slot && t.vars ? t : equippedItem(eq, slot)
+    for (const [k, v] of Object.entries(it.vars ?? {})) root.style.setProperty(k, v)
   }
 }

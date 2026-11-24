@@ -288,9 +288,9 @@ function drawScene(cv: HTMLCanvasElement, isPaused: () => boolean, kind: string,
   return () => cancelAnimationFrame(raf)
 }
 
-/** Aperçu fixe d'une ambiance (boutique). */
-export function ScenePreview({ kind }: { kind: string }) {
+/** Aperçu d'une ambiance (boutique) : image fixe, animée quand `playing` est vrai. */
+export function ScenePreview({ kind, playing = false, className = 'scene-preview' }: { kind: string; playing?: boolean; className?: string }) {
   const ref = useRef<HTMLCanvasElement>(null)
-  useEffect(() => drawScene(ref.current!, () => true, kind, true), [kind])
-  return <canvas ref={ref} className="scene-preview" aria-hidden="true" />
+  useEffect(() => drawScene(ref.current!, () => !playing, kind, !playing), [kind, playing])
+  return <canvas ref={ref} className={className} aria-hidden="true" />
 }
