@@ -10,7 +10,9 @@ export function explain(e: unknown): string {
   if (m.includes('edition_incoherente')) return 'Cette édition n’appartient pas à ce livre.'
   if (/mime type/i.test(m)) return 'Ce format d’image n’est pas accepté. Utilise une photo en JPEG, PNG ou WebP.'
   if (/maximum allowed size|Payload too large/i.test(m)) return 'Cette image est trop lourde, même compressée.'
-  if (m.includes('Pas assez de signets') || m.includes('déjà cet article') || m.includes('pas encore acheté')) return m + '.'
+  if (/could not find the function|PGRST202/i.test(m) || err?.code === 'PGRST202')
+    return 'Cette fonction n’est pas encore installée sur le serveur : la mise à jour de la base est en attente.'
+  if (m.includes('Pas assez de signets') || m.includes('déjà cet article') || m.includes('pas encore acheté') || m.includes('exemplaires de cet objet') || m.includes('Variante')) return m.replace(/\.$/, '') + '.'
   if (err?.code === '23505') return 'Cet élément existe déjà.'
   if (m.includes('Failed to fetch') || m.includes('NetworkError')) return 'Pas de connexion. Réessaie dès que le réseau revient.'
   if (m.includes('rate limit') || m.includes('over_email_send_rate_limit'))
