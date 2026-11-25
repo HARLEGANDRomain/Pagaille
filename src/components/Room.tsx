@@ -45,6 +45,13 @@ function Box({ x, y, z = 0, w, d, h, m }: { x: number; y: number; z?: number; w:
   )
 }
 
+type BoxProps = { x: number; y: number; z?: number; w: number; d: number; h: number; m: Mat }
+/** Plusieurs pavés d'un même meuble, triés par profondeur : les volumes ne doivent pas se chevaucher. */
+function Boxes({ l }: { l: BoxProps[] }) {
+  const k = (b: BoxProps) => b.x + b.w / 2 + b.y + b.d / 2
+  return <g>{[...l].sort((a, b) => k(a) - k(b) || (a.z ?? 0) - (b.z ?? 0)).map((b, i) => <Box key={i} {...b} />)}</g>
+}
+
 /** Un meuble à dessiner, trié par profondeur (centre au sol) pour que le plus proche passe devant. */
 type Piece = { depth: number; node: ReactNode }
 const piece = (x: number, y: number, w: number, d: number, node: ReactNode): Piece => ({ depth: x + w / 2 + y + d / 2, node })
@@ -60,8 +67,8 @@ export const SEATS: SeatDef[] = [
   { gx: 3.75, gy: 6.2, z: 28, kind: 'le canapé de devant' },
   { gx: 5, gy: 6.2, z: 28, kind: 'le canapé de devant' },
   { gx: 6.25, gy: 6.2, z: 28, kind: 'le canapé de devant' },
-  { gx: 8.35, gy: 4.1, z: 28, kind: 'le fauteuil près de la lampe' },
-  { gx: 1.95, gy: 4.1, z: 28, kind: 'le fauteuil près de la fenêtre' },
+  { gx: 8.22, gy: 4.1, z: 28, kind: 'le fauteuil près de l’étagère' },
+  { gx: 2.07, gy: 4.1, z: 28, kind: 'le fauteuil près de la fenêtre' },
   { gx: 8.5, gy: 7.4, z: 26, kind: 'la table de lecture' },
   { gx: 9.55, gy: 6.45, z: 26, kind: 'la table de lecture' },
 ]
@@ -74,29 +81,24 @@ const firstName = (n: string) => n.split(/\s+/)[0]
 /* ---------- meubles ---------- */
 
 function Sofa({ x, y, back }: { x: number; y: number; back: 'far' | 'near' }) {
-  // 4 × 1 ; le dossier côté mur (far) ou côté spectateur (near).
-  const by = back === 'far' ? y : y + 0.75
-  return (
-    <g>
-      {back === 'far' && <Box x={x} y={by} w={4} d={0.25} h={58} m={M.blue} />}
-      <Box x={x} y={y} w={0.3} d={1} h={36} m={M.blue} />
-      <Box x={x + 0.3} y={back === 'far' ? y + 0.25 : y} w={3.4} d={0.75} h={24} m={M.blue} />
-      <Box x={x + 3.7} y={y} w={0.3} d={1} h={36} m={M.blue} />
-      {back === 'near' && <Box x={x} y={by} w={4} d={0.25} h={46} m={M.blue} />}
-    </g>
-  )
+  // 4 × 1 ; accoudoirs sur toute la profondeur, dossier ENTRE les accoudoirs, côté mur (far) ou côté spectateur (near).
+  const by = back === 'far' ? y : y + 0.75, sy = back === 'far' ? y + 0.25 : y
+  return <Boxes l={[
+    { x, y, w: 0.3, d: 1, h: 36, m: M.blue },
+    { x: x + 0.3, y: sy, w: 3.4, d: 0.75, h: 24, m: M.blue },
+    { x: x + 0.3, y: by, w: 3.4, d: 0.25, h: back === 'far' ? 56 : 46, m: M.blue },
+    { x: x + 3.7, y, w: 0.3, d: 1, h: 36, m: M.blue },
+  ]} />
 }
 function Armchair({ x, y, back }: { x: number; y: number; back: 'right' | 'left' }) {
-  // 1 × 1 ; dossier contre gx+ (right) ou gx- (left).
-  return (
-    <g>
-      {back === 'left' && <Box x={x} y={y} w={0.25} d={1} h={56} m={M.green} />}
-      <Box x={x} y={y} w={1} d={0.2} h={36} m={M.green} />
-      <Box x={back === 'left' ? x + 0.25 : x} y={y + 0.2} w={0.75} d={0.6} h={24} m={M.green} />
-      <Box x={x} y={y + 0.8} w={1} d={0.2} h={36} m={M.green} />
-      {back === 'right' && <Box x={x + 0.75} y={y} w={0.25} d={1} h={56} m={M.green} />}
-    </g>
-  )
+  // 1 × 1 ; dossier sur toute la profondeur contre gx+ (right) ou gx- (left), accoudoirs et assise à côté.
+  const bx = back === 'left' ? x : x + 0.75, sx = back === 'left' ? x + 0.25 : x
+  return <Boxes l={[
+    { x: bx, y, w: 0.25, d: 1, h: 56, m: M.green },
+    { x: sx, y, w: 0.75, d: 0.2, h: 36, m: M.green },
+    { x: sx, y: y + 0.2, w: 0.75, d: 0.6, h: 24, m: M.green },
+    { x: sx, y: y + 0.8, w: 0.75, d: 0.2, h: 36, m: M.green },
+  ]} />
 }
 function Chair({ x, y, back }: { x: number; y: number; back: 'near' | 'right' }) {
   return (
@@ -108,34 +110,66 @@ function Chair({ x, y, back }: { x: number; y: number; back: 'near' | 'right' })
   )
 }
 
-/* ---------- étagère commune (mur de droite, face avant en gy = SD) ---------- */
-const SX = 4.6, SW = 4.9, SD = 0.55, SH = 176, PLANKS = [8, 64, 120]
-const onShelf = (gx: number, z: number) => P(gx, SD, z)
+/* ---------- étagère commune (contre le mur de droite) ----------
+   Un vrai meuble : fond, montant gauche, planches épaisses, montant droit devant. Les livres sont des pavés :
+   dos (face avant) à la couleur du livre, tranche du haut couleur papier. Un livre abandonné penche vers la
+   droite, appuyé sur son voisin, dans le plan de l'étagère. */
+const SX = 4.6, SW = 4.9, SD = 0.75, SH = 176, SIDE = 0.12
+const LEVELS = [0, 58, 114] // dessus de chaque planche = z + PT
+const PT = 8
+const BY0 = 0.14, BY1 = 0.62 // profondeur occupée par les livres
 
-function Shelf({ feed, uid }: { feed: FeedItem[]; uid: string }) {
-  const books: ReactNode[] = []
-  let p = 0, x = SX + 0.15
-  for (const f of feed) {
-    const h = hash(f.work_title + f.user_id)
-    const w = 0.28 + (h % 4) * 0.05, ht = 36 + (h % 12)
-    if (x + w > SX + SW - 0.15) { p++; x = SX + 0.15 }
-    if (p >= PLANKS.length) break
-    const z = PLANKS[p] + 6, tilt = f.status === 'abandon' ? 0.22 : 0
-    books.push(
-      <polygon key={f.user_book_id} points={pts([onShelf(x, z), onShelf(x + w, z), onShelf(x + w - tilt, z + ht), onShelf(x - tilt, z + ht)])} fill={SPINES[h % SPINES.length]} stroke="rgba(0,0,0,.25)" strokeWidth=".6">
-        <title>{`${f.work_title} — ${f.status === 'fini' ? 'terminé' : 'abandonné'} par ${f.user_id === uid ? 'toi' : f.display_name}`}</title>
-      </polygon>,
-    )
-    x += w + (tilt ? 0.3 : 0.04)
-  }
-  const [hx, hy] = onShelf(SX + SW / 2 - 1.6, 78)
+function shade(hex: string, f: number) {
+  const n = parseInt(hex.slice(1), 16)
+  const c = (v: number) => Math.round(Math.min(255, Math.max(0, v * f))).toString(16).padStart(2, '0')
+  return `#${c(n >> 16)}${c((n >> 8) & 255)}${c(n & 255)}`
+}
+
+function Book({ x, w, z, ht, lean, color, title }: { x: number; w: number; z: number; ht: number; lean: number; color: string; title: string }) {
+  const zt = z + ht, y0 = BY0, y1 = BY1
   return (
     <g>
-      <Box x={SX} y={0} w={SW} d={SD} h={SH} m={M.dark} />
-      {/* creux du meuble : le fond, puis les planches */}
-      <polygon points={pts([onShelf(SX + 0.12, 8), onShelf(SX + SW - 0.12, 8), onShelf(SX + SW - 0.12, SH - 8), onShelf(SX + 0.12, SH - 8)])} fill="var(--rm-shelf-back)" />
-      {PLANKS.map((z) => <polygon key={z} points={pts([onShelf(SX + 0.12, z), onShelf(SX + SW - 0.12, z), onShelf(SX + SW - 0.12, z + 6), onShelf(SX + 0.12, z + 6)])} fill="var(--rm-wood-top)" />)}
-      {books}
+      <title>{title}</title>
+      <polygon points={pts([P(x + w, y0, z), P(x + w, y1, z), P(x + w + lean, y1, zt), P(x + w + lean, y0, zt)])} fill={shade(color, 0.72)} />
+      <polygon points={pts([P(x + lean, y0, zt), P(x + w + lean, y0, zt), P(x + w + lean, y1, zt), P(x + lean, y1, zt)])} fill="#EFE6D2" />
+      <polygon points={pts([P(x, y1, z), P(x + w, y1, z), P(x + w + lean, y1, zt), P(x + lean, y1, zt)])} fill={color} />
+      <polygon points={pts([P(x + w * 0.15 + lean * 0.8, y1, zt - 9), P(x + w * 0.85 + lean * 0.8, y1, zt - 9), P(x + w * 0.85 + lean * 0.8, y1, zt - 7), P(x + w * 0.15 + lean * 0.8, y1, zt - 7)])} fill="#fff" opacity=".4" />
+    </g>
+  )
+}
+
+function Shelf({ feed, uid }: { feed: FeedItem[]; uid: string }) {
+  // Répartition des livres sur les trois niveaux, de gauche à droite.
+  const rows: ReactNode[][] = [[], [], []]
+  let p = 0, x = SX + SIDE + 0.06
+  const end = SX + SW - SIDE - 0.06
+  for (const f of feed) {
+    const h = hash(f.work_title + f.user_id)
+    const w = 0.22 + (h % 4) * 0.05, abandoned = f.status === 'abandon'
+    const ht = 32 + (h % 12), lean = abandoned ? 0.22 : 0
+    if (x + w + lean > end) { p++; x = SX + SIDE + 0.06 }
+    if (p >= rows.length) break
+    rows[p].push(
+      <Book key={f.user_book_id} x={x} w={w} z={LEVELS[p] + PT} ht={abandoned ? ht - 3 : ht} lean={lean} color={SPINES[h % SPINES.length]}
+        title={`${f.work_title} — ${f.status === 'fini' ? 'terminé' : 'abandonné'} par ${f.user_id === uid ? 'toi' : f.display_name}`} />,
+    )
+    x += w + lean + 0.02
+  }
+  const [hx, hy] = P(SX + 1.2, 0.05, 92)
+  const inner = { x: SX + SIDE, w: SW - 2 * SIDE }
+  return (
+    <g>
+      {/* fond du meuble */}
+      <polygon points={pts([P(SX, 0.02, 0), P(SX + SW, 0.02, 0), P(SX + SW, 0.02, SH), P(SX, 0.02, SH)])} fill="var(--rm-shelf-back)" />
+      <Box x={SX} y={0} w={SIDE} d={SD} h={SH} m={M.dark} />
+      {LEVELS.map((z, i) => (
+        <g key={z}>
+          <Box x={inner.x} y={0} w={inner.w} d={SD} h={PT} z={z} m={M.wood} />
+          {rows[i]}
+        </g>
+      ))}
+      <Box x={inner.x} y={0} w={inner.w} d={SD} h={PT} z={SH - PT} m={M.wood} />
+      <Box x={SX + SW - SIDE} y={0} w={SIDE} d={SD} h={SH} m={M.dark} />
       {!feed.length && <text transform={`matrix(1 .5 0 1 ${hx} ${hy})`} className="room-hint">Les livres finis du cercle viendront ici</text>}
     </g>
   )
@@ -164,7 +198,7 @@ function Pile({ total, goal }: { total: number; goal: number }) {
 }
 
 function Lamp({ on }: { on: boolean }) {
-  const [bx, by] = P(9.4, 2.7, 0), [sx, sy] = P(9.4, 2.7, 150)
+  const [bx, by] = P(1.9, 1.0, 0), [sx, sy] = P(1.9, 1.0, 150)
   return (
     <g>
       {on && <circle cx={sx} cy={sy + 10} r="70" fill="url(#room-glow)" />}
@@ -211,6 +245,7 @@ export default function Room({ members, feed, total, goal, readers, uid, ambianc
     piece(8.4, 6.05, 1.1, 1.1, <g><Box x={8.85} y={6.5} w={0.2} d={0.2} h={30} m={M.dark} /><Box x={8.4} y={6.05} w={1.1} d={1.1} h={5} z={30} m={M.wood} /></g>),
     piece(8.2, 7.1, 0.6, 0.6, <Chair x={8.2} y={7.1} back="near" />),
     piece(9.25, 6.15, 0.6, 0.6, <Chair x={9.25} y={6.15} back="right" />),
+    piece(1.8, 0.9, 0.2, 0.2, <Lamp on={readers.length > 0} />),
   ].sort((a, b) => a.depth - b.depth)
 
   return (
@@ -233,7 +268,6 @@ export default function Room({ members, feed, total, goal, readers, uid, ambianc
         <Shelf feed={feed} uid={uid} />
         {furniture.map((f, i) => <g key={i}>{f.node}</g>)}
         <Pile total={total} goal={goal} />
-        <Lamp on={readers.length > 0} />
         {[...bySeat].filter(([, m]) => reading.has(m.user_id)).map(([i]) => { const [x, y] = seatPt(SEATS[i]); return <circle key={i} cx={x} cy={y} r="62" fill="url(#room-glow)" /> })}
       </svg>
       <div className="room-window" style={{ left: pct(wx, W), top: pct(wy, H), width: pct(winW, W), height: pct(winH, H) }}>

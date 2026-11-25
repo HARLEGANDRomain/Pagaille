@@ -38,10 +38,10 @@ try {
   await p.screenshot({ path: '/tmp/shots8/piece.png' })
 
   // S'asseoir
-  await p.evaluate(() => [...document.querySelectorAll('.room-seat.free')].find((b) => /fauteuil près de la lampe/.test(b.getAttribute('aria-label'))).click()); await sleep(500)
+  await p.evaluate(() => [...document.querySelectorAll('.room-seat.free')].find((b) => /fauteuil près de l’étagère/.test(b.getAttribute('aria-label'))).click()); await sleep(500)
   const mine = await seatAt(p, 8)
-  ok(mine && /mine/.test(mine) && /Toi/.test(mine), 'je m’assois dans le fauteuil près de la lampe')
-  ok(await p.evaluate(() => /Tu t’assois sur le fauteuil près de la lampe/.test(document.body.innerText)), 'message : « Tu t’assois sur le fauteuil près de la lampe »')
+  ok(mine && /mine/.test(mine) && /Toi/.test(mine), 'je m’assois dans le fauteuil près de l’étagère')
+  ok(await p.evaluate(() => /Tu t’assois sur le fauteuil près de l’étagère/.test(document.body.innerText)), 'message : « Tu t’assois sur le fauteuil près de l’étagère »')
   ok((await p.$$('.room-seat.free')).length === 10, 'plus que 10 places libres')
   // Changer de place
   await p.evaluate(() => [...document.querySelectorAll('.room-seat.free')].find((b) => /table de lecture/.test(b.getAttribute('aria-label'))).click()); await sleep(500)
@@ -54,7 +54,7 @@ try {
   await p.evaluate(() => document.querySelector('.room-seat.mine').click()); await sleep(500)
   ok(await p.$('.room-seat.mine') === null && /Choisis ta place/.test(await legend(p)), 'toucher ma place : je me lève')
   // Se rasseoir pour la lecture
-  await p.evaluate(() => [...document.querySelectorAll('.room-seat.free')].find((b) => /fauteuil près de la lampe/.test(b.getAttribute('aria-label'))).click()); await sleep(500)
+  await p.evaluate(() => [...document.querySelectorAll('.room-seat.free')].find((b) => /fauteuil près de l’étagère/.test(b.getAttribute('aria-label'))).click()); await sleep(500)
 
   // Lire avec le cercle : la pièce en petit, ma lampe allumée
   await p.evaluate(() => [...document.querySelectorAll('button')].find((b) => /Lire avec le cercle/.test(b.textContent)).click()); await sleep(1500)

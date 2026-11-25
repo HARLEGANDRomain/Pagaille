@@ -171,7 +171,15 @@ export const supabase = {
       if (!me) return { data: null, error: err('pas_membre') }
       me.seat = a.p_seat; return { data: a.p_seat, error: null }
     }
-    if (fn === 'circle_feed') return { data: [{ user_book_id: 'x1', user_id: 'u-ines', display_name: 'Inès', work_title: 'Maus', status: 'fini', closed_at: ago(0.2), cheer_count: 2, cheered_by_me: false }], error: null }
+    if (fn === 'circle_feed') {
+      // localStorage['mock.shelf'] = '0' : étagère vide (seulement « Maus »).
+      const more = globalThis.localStorage?.getItem('mock.shelf') === '0' ? [] : ([
+        ['Malo', 'u-malo', 'L’Étranger', 'fini'], ['Inès', 'u-ines', 'Ça', 'abandon'], ['Malo', 'u-malo', 'Dune', 'fini'], ['Inès', 'u-ines', 'Persepolis', 'fini'],
+        ['Malo', 'u-malo', 'Les Misérables', 'abandon'], ['Inès', 'u-ines', 'Le Petit Prince', 'fini'], ['Malo', 'u-malo', 'Fondation', 'fini'], ['Inès', 'u-ines', 'Kafka sur le rivage', 'fini'],
+        ['Malo', 'u-malo', 'La Horde du Contrevent', 'fini'], ['Inès', 'u-ines', 'Chanson douce', 'fini'], ['Malo', 'u-malo', 'Le Nom de la rose', 'fini'], ['Inès', 'u-ines', 'Sapiens', 'fini'],
+      ] as const).map(([n, id, t, st], i) => ({ user_book_id: 'x' + (i + 2), user_id: id, display_name: n, work_title: t, status: st, closed_at: ago(1 + i), cheer_count: 0, cheered_by_me: false }))
+      return { data: [{ user_book_id: 'x1', user_id: 'u-ines', display_name: 'Inès', work_title: 'Maus', status: 'fini', closed_at: ago(0.2), cheer_count: 2, cheered_by_me: false }, ...more], error: null }
+    }
     return { data: null, error: err('rpc inconnue ' + fn) }
   },
   auth: {
