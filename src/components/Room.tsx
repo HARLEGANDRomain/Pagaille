@@ -197,14 +197,35 @@ function Pile({ total, goal }: { total: number; goal: number }) {
   )
 }
 
+/** Lampadaire en volume : pied en disque épais, mât à deux faces, abat-jour en cône tronqué (cercles vus en
+    perspective = ellipses 2:1, comme le sol). Allumé dès que quelqu'un lit. */
 function Lamp({ on }: { on: boolean }) {
-  const [bx, by] = P(1.9, 1.0, 0), [sx, sy] = P(1.9, 1.0, 150)
+  const [cx, cy] = P(1.9, 1.0, 0)
+  const base = { rx: 15, ry: 7.5, h: 5 }
+  const yb = cy - 128, yt = cy - 160 // bas et haut de l'abat-jour
+  const B = { rx: 23, ry: 11.5 }, T = { rx: 13, ry: 6.5 }
+  const shade = on ? 'url(#room-shade-on)' : 'url(#room-shade)'
   return (
     <g>
-      {on && <circle cx={sx} cy={sy + 10} r="70" fill="url(#room-glow)" />}
-      <ellipse cx={bx} cy={by} rx="16" ry="7" fill="var(--rm-line)" />
-      <path d={`M${bx} ${by}V${sy}`} stroke="var(--rm-line)" strokeWidth="3" />
-      <path d={`M${sx - 18} ${sy + 6}h36l-8-26h-20z`} fill={on ? '#FFE9A0' : 'var(--rm-cream-top)'} stroke="var(--rm-line)" strokeWidth="1.2" />
+      <defs>
+        <linearGradient id="room-shade" x1="0" x2="1"><stop offset="0" stopColor="#F4EEDF" /><stop offset=".55" stopColor="#E2D8C2" /><stop offset="1" stopColor="#B9AC90" /></linearGradient>
+        <linearGradient id="room-shade-on" x1="0" x2="1"><stop offset="0" stopColor="#FFF4C2" /><stop offset=".55" stopColor="#FFE38A" /><stop offset="1" stopColor="#E8C25A" /></linearGradient>
+        <linearGradient id="room-pole" x1="0" x2="1"><stop offset="0" stopColor="#3A4266" /><stop offset=".5" stopColor="#3A4266" /><stop offset=".5" stopColor="#161D3A" /><stop offset="1" stopColor="#161D3A" /></linearGradient>
+      </defs>
+      {on && <circle cx={cx} cy={yb - 6} r="78" fill="url(#room-glow)" />}
+      {/* pied : disque épais */}
+      <ellipse cx={cx} cy={cy} rx={base.rx} ry={base.ry} fill="#161D3A" />
+      <rect x={cx - base.rx} y={cy - base.h} width={base.rx * 2} height={base.h} fill="#161D3A" />
+      <ellipse cx={cx} cy={cy - base.h} rx={base.rx} ry={base.ry} fill="#3A4266" />
+      {/* mât : face claire à gauche, sombre à droite */}
+      <rect x={cx - 2.2} y={yb} width="4.4" height={cy - base.h - yb} fill="url(#room-pole)" />
+      {/* ampoule visible sous l'abat-jour */}
+      <ellipse cx={cx} cy={yb} rx={B.rx - 2} ry={B.ry - 1.5} fill={on ? '#FFF6C8' : '#8E8670'} />
+      {/* côté de l'abat-jour : moitié avant du haut, puis moitié avant du bas */}
+      <path d={`M${cx - B.rx} ${yb} L${cx - T.rx} ${yt} A${T.rx} ${T.ry} 0 0 0 ${cx + T.rx} ${yt} L${cx + B.rx} ${yb} A${B.rx} ${B.ry} 0 0 1 ${cx - B.rx} ${yb} Z`}
+        fill={shade} stroke="var(--rm-line)" strokeWidth="1" strokeLinejoin="round" />
+      {/* ouverture du haut : on voit l'intérieur */}
+      <ellipse cx={cx} cy={yt} rx={T.rx} ry={T.ry} fill={on ? '#FFE9A0' : '#A39878'} stroke="var(--rm-line)" strokeWidth="1" />
     </g>
   )
 }
