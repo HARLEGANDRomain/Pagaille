@@ -2,6 +2,9 @@ import { useCallback, useEffect, useState } from 'react'
 import * as api from '../lib/api'
 import { explain } from '../lib/supabase'
 import ChatPanel from '../components/ChatPanel'
+import Room, { SEATS } from '../components/Room'
+import { useReaders } from '../lib/presence'
+import { equippedItem } from '../lib/cosmetics'
 import { Avatar, Bar, Err, Modal, DlgHead, Skeleton, useToast } from '../lib/ui'
 import { useStore } from '../lib/store'
 import { dayIdx, plural, STATUS_LABEL } from '../lib/logic'
@@ -83,6 +86,26 @@ function FriendLibrary({ m, onClose }: { m: Member; onClose: () => void }) {
   )
 }
 
+/* ---------- sous la pièce : qui lit, qui n'est pas encore assis ---------- */
+function RoomLegend({ members, readers, uid, circleName }: { members: Member[]; readers: { id: string; name: string }[]; uid: string; circleName: string }) {
+  const me = members.find((m) => m.user_id === uid)
+  const others = readers.filter((r) => r.id !== uid)
+  const standing = members.filter((m) => m.seat == null && m.user_id !== uid)
+  return (
+    <div className="room-legend small">
+      <span>
+        {others.length
+          ? <><b>{others.map((r) => r.name).join(', ')}</b> {others.length > 1 ? 'lisent' : 'lit'} en ce moment : sa lampe est allumée.</>
+          : <span className="muted">Personne ne lit en ce moment. Lance « Lire avec le cercle » : ta lampe s’allumera chez les autres.</span>}
+      </span>
+      {me && me.seat == null && <span><b>Choisis ta place :</b> touche un siège libre.</span>}
+      {me && me.seat != null && <span className="muted">Touche un siège libre pour changer de place, ou ta place pour te lever.</span>}
+      {standing.length > 0 && <span className="muted">Pas encore assis : {standing.map((m) => m.display_name).join(', ')}.</span>}
+      {!members.length && <span className="muted">{circleName}</span>}
+    </div>
+  )
+}
+
 /* ---------- un cercle ---------- */
 function CircleDetail({ circle, onStart }: { circle: Circle; onStart: (c: Circle) => void }) {
   const st = useStore()
@@ -95,6 +118,7 @@ function CircleDetail({ circle, onStart }: { circle: Circle; onStart: (c: Circle
   const [loaded, setLoaded] = useState(false)
   const nameOf = useCallback((id: string) => members.find((m) => m.user_id === id), [members])
   const owner = members.find((m) => m.user_id === st.uid)?.role === 'owner'
+  const readers = useReaders(circle.id, st.uid) // on écoute seulement : on se signale en lançant « Lire avec le cercle »
 
   const loadAll = useCallback(async () => {
     try {
@@ -110,6 +134,15 @@ function CircleDetail({ circle, onStart }: { circle: Circle; onStart: (c: Circle
     setFeed((l) => l.map((x) => (x.user_book_id === f.user_book_id ? { ...x, cheered_by_me: on, cheer_count: x.cheer_count + (on ? 1 : -1) } : x)))
     try { await api.setCheer(st.uid, f.user_book_id, on) }
     catch (err) { toast(explain(err)); void loadAll() }
+  }
+
+  async function sit(seat: number | null) {
+    const before = members
+    setMembers((l) => l.map((m) => (m.user_id === st.uid ? { ...m, seat } : m)))
+    try {
+      await api.chooseSeat(circle.id, seat)
+      toast(seat == null ? 'Tu t’es levé. Ta place est libre.' : `Tu t’assois sur ${SEATS[seat].kind}.`)
+    } catch (e) { setMembers(before); toast(explain(e)); void loadAll() }
   }
 
   async function copyCode() {
@@ -145,6 +178,11 @@ function CircleDetail({ circle, onStart }: { circle: Circle; onStart: (c: Circle
         <div className="row">{members.map((m) => <Avatar key={m.user_id} name={m.display_name} color={m.avatar_color} url={m.avatar_url} me={m.user_id === st.uid} />)}</div>
       </div>
       <Err>{error}</Err>
+      <section data-perch="zone:piece" style={{ marginBottom: 24 }}>
+        <Room members={members} feed={feed} total={total} goal={circle.weekly_goal_pages} readers={readers} uid={st.uid}
+          ambiance={equippedItem(st.profile.equipped, 'scene').id} onSit={(seat) => void sit(seat)} onMember={setFriend} />
+        <RoomLegend members={members} readers={readers} uid={st.uid} circleName={circle.name} />
+      </section>
       <div className="cols">
         <div>
           <section className="panel stack" data-perch="zone:cercle-a">
@@ -166,7 +204,7 @@ function CircleDetail({ circle, onStart }: { circle: Circle; onStart: (c: Circle
 
           <section>
             <h2>Ce qui s’est passé</h2>
-            <p className="muted small" style={{ margin: '4px 0 8px' }}>Livres terminés ou abandonnés par les membres qui partagent leur bibliothèque.</p>
+            <p className="muted small" style={{ margin: '4px 0 8px' }}>Livres terminés ou abandonnés par les membres qui partagent leur bibliothèque. Ils rejoignent l’étagère de la pièce (penchés s’ils ont été abandonnés).</p>
             {!feed.length && <p className="empty">Rien pour l’instant. Le premier livre tranché apparaîtra ici.</p>}
             {feed.map((f) => (
               <div className="member" key={f.user_book_id}>

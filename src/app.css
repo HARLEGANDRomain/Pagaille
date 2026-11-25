@@ -186,3 +186,36 @@ body.holding-trinket{cursor:grabbing;user-select:none;-webkit-user-select:none}
 .mission.final{margin-top:6px;padding:14px;border:1.5px dashed var(--line);border-radius:12px}
 .mission.final.won{border-style:solid;border-color:var(--mark-ink);background:color-mix(in srgb,var(--mark) 22%,transparent)}
 .mission .kicker{display:block;font-size:.72rem;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-2);margin-bottom:2px}
+
+/* ---------- Pièce de vie du cercle (Room.tsx) : isométrique 800 × 560, tailles en cqw pour suivre la largeur ----------
+   Chaque matière a trois teintes : dessus (le plus clair), face avant gauche, face avant droite (la plus sombre). */
+.room{
+  --rm-wall-l:#E3D8C6;--rm-wall-r:#EFE7DA;--rm-floor:#C9A27A;--rm-floor-line:rgba(107,68,40,.18);--rm-rug:rgba(122,35,51,.22);
+  --rm-wood-top:#B08257;--rm-wood-l:#8A5E3B;--rm-wood-r:#714A2D;--rm-dark-top:#7A5034;--rm-dark-l:#5A3A24;--rm-dark-r:#472D1B;--rm-shelf-back:#3A2617;
+  --rm-blue-top:#5A77BC;--rm-blue-l:#3D5A9E;--rm-blue-r:#2E4680;--rm-green-top:#3A7A6A;--rm-green-l:#2A5F53;--rm-green-r:#1F4D45;
+  --rm-red-top:#A33A4A;--rm-red-l:#7A2333;--rm-red-r:#621B29;--rm-cream-top:#F4EEDF;--rm-cream-l:#E2D8C2;--rm-cream-r:#CFC3AA;--rm-line:#161D3A;
+  position:relative;width:100%;aspect-ratio:10/7;container-type:inline-size;border-radius:var(--r);overflow:hidden;border:1.5px solid var(--line);
+  background:linear-gradient(180deg,var(--surface),color-mix(in srgb,var(--surface) 80%,var(--line)))}
+@media (prefers-color-scheme:dark){.room{--rm-wall-l:#202850;--rm-wall-r:#28305C;--rm-floor:#4A3A30;--rm-floor-line:rgba(0,0,0,.22);--rm-rug:rgba(163,58,74,.25);--rm-shelf-back:#22160D;--rm-line:#0B0F22}}
+.room>svg{position:absolute;inset:0;width:100%;height:100%;display:block}
+.room-hint{font-size:12px;font-weight:600;fill:#E9E1D2;opacity:.75}
+.room-count{font-size:21px;font-weight:800;fill:#161D3A;stroke:#F4EEDF;stroke-width:4px;paint-order:stroke;stroke-linejoin:round}
+/* fenêtre posée à plat sur le mur de gauche : cisaillée comme le mur (pente 1/2) */
+.room-window{position:absolute;overflow:hidden;background:#0F1428;transform:skewY(-26.565deg);transform-origin:0 0}
+.room-window-cv{position:absolute;inset:0;width:100%;height:100%;display:block}
+.room-mullion{position:absolute;background:var(--rm-wood-l)}.room-mullion.v{left:calc(50% - .4cqw);top:0;bottom:0;width:.8cqw}.room-mullion.h{top:calc(50% - .4cqw);left:0;right:0;height:.8cqw}
+.room-seat{position:absolute;transform:translate(-50%,-50%);display:grid;justify-items:center;gap:.3cqw;padding:0;border:0;background:none;color:inherit;font:inherit}
+button.room-seat{cursor:pointer}
+.room-av{position:relative;display:block}
+.room-seat .avatar{width:max(5.4cqw,22px);height:max(5.4cqw,22px);font-size:max(2.3cqw,10px);box-shadow:0 0 0 2px rgba(255,255,255,.85),0 .4cqw .8cqw rgba(0,0,0,.25);transition:transform .15s}
+button.room-seat:hover .avatar,button.room-seat:focus-visible .avatar{transform:scale(1.08)}
+.room-seat.taken:not(.reading) .avatar{filter:saturate(.35);opacity:.75}
+.room-seat.reading .avatar{box-shadow:0 0 0 2px var(--mark),0 0 2.4cqw .6cqw rgba(255,221,60,.55)}
+.room-seat.mine .avatar{outline:2px dashed var(--ink);outline-offset:3px}
+.room-book{position:absolute;width:max(3.2cqw,15px);right:-55%;bottom:-12%;filter:drop-shadow(0 1px 1px rgba(0,0,0,.35))}
+.room-name{font-size:max(1.6cqw,9px);font-weight:700;line-height:1;padding:.25cqw .7cqw;border-radius:99px;background:rgba(255,255,255,.85);color:#161D3A;white-space:nowrap}
+.room-seat.free{width:max(4.6cqw,22px);height:max(4.6cqw,22px);border-radius:50%;border:2px dashed rgba(22,29,58,.4);background:rgba(255,255,255,.22);opacity:.6}
+.room-seat.free:hover,.room-seat.free:focus-visible{opacity:1;background:rgba(255,221,60,.5);border-color:var(--ink)}
+@media (prefers-color-scheme:dark){.room-seat.free{border-color:rgba(233,236,246,.45)}}
+.room.compact{max-width:460px;margin:0 auto;border-color:rgba(255,255,255,.2);background:rgba(255,255,255,.06)}
+.room-legend{display:flex;flex-wrap:wrap;gap:6px 16px;align-items:center;margin:10px 0 0}

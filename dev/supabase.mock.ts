@@ -32,7 +32,7 @@ const db: Record<string, Row[]> = {
   user_books: [], private_notes: [], reading_sessions: [], signet_ledger: [], cheers: [], trinket_variants: [],
   circles: [{ id: 'c1', name: 'Les Lents Lecteurs', invite_code: 'K7M2QX9A', weekly_goal_pages: 250, created_by: 'u-ines' }],
   circle_members: [
-    { circle_id: 'c1', user_id: ME, role: 'member' }, { circle_id: 'c1', user_id: 'u-ines', role: 'owner' }, { circle_id: 'c1', user_id: 'u-malo', role: 'member' },
+    { circle_id: 'c1', user_id: ME, role: 'member', seat: null }, { circle_id: 'c1', user_id: 'u-ines', role: 'owner', seat: 3 }, { circle_id: 'c1', user_id: 'u-malo', role: 'member', seat: null },
   ],
   circle_messages: [
     { id: 1, circle_id: 'c1', user_id: 'u-ines', body: 'Session ce soir 21h, qui vient ?', created_at: ago(0.3) },
@@ -122,6 +122,7 @@ const user = { id: ME, email: 'romain@exemple.fr' }
 const session = { user, access_token: 'mock' }
 let authCb: ((e: string, s: any) => void) | null = null
 
+const presenceMe = new Map<string, Row>(), presenceSubs: (() => void)[] = []
 export const supabase = {
   from: (t: string) => new Q(t),
   rpc: async (fn: string, a: Row) => {
@@ -163,6 +164,13 @@ export const supabase = {
       if (!w.synopsis) w.synopsis = String(a.p_text)
       return { data: w.synopsis, error: null }
     }
+    if (fn === 'choose_seat') {
+      if (a.p_seat !== null && (a.p_seat < 0 || a.p_seat > 11)) return { data: null, error: err('siege_inconnu') }
+      if (a.p_seat !== null && db.circle_members.some((m) => m.circle_id === a.p_circle && m.seat === a.p_seat && m.user_id !== ME)) return { data: null, error: err('siege_pris') }
+      const me = db.circle_members.find((m) => m.circle_id === a.p_circle && m.user_id === ME)
+      if (!me) return { data: null, error: err('pas_membre') }
+      me.seat = a.p_seat; return { data: a.p_seat, error: null }
+    }
     if (fn === 'circle_feed') return { data: [{ user_book_id: 'x1', user_id: 'u-ines', display_name: 'Inès', work_title: 'Maus', status: 'fini', closed_at: ago(0.2), cheer_count: 2, cheered_by_me: false }], error: null }
     return { data: null, error: err('rpc inconnue ' + fn) }
   },
@@ -173,10 +181,26 @@ export const supabase = {
     verifyOtp: async () => { localStorage.removeItem('mock-out'); authCb?.('SIGNED_IN', session); return { error: null } },
     signOut: async () => { localStorage.setItem('mock-out', '1'); authCb?.('SIGNED_OUT', null) },
   },
-  channel: () => {
+  // Présence : localStorage['mock.readers'] = ids des amis « en train de lire » (ex. '["u-ines"]') ; track() ajoute soi.
+  channel: (topic: string) => {
+    const syncs: (() => void)[] = []
+    const fire = () => syncs.forEach((f) => f())
     const ch: any = {
-      on: (_t: string, cfg: any, cb: (p: any) => void) => { if (cfg?.table === 'circle_messages' && cfg.event === 'INSERT') listeners.push((r) => cb({ new: r })); return ch },
-      subscribe: (cb?: (s: string) => void) => { cb?.('SUBSCRIBED'); return ch }, track: async () => {}, presenceState: () => ({}),
+      on: (t: string, cfg: any, cb: (p: any) => void) => {
+        if (cfg?.table === 'circle_messages' && cfg.event === 'INSERT') listeners.push((r) => cb({ new: r }))
+        if (t === 'presence') { syncs.push(() => cb({})); presenceSubs.push(fire) }
+        return ch
+      },
+      subscribe: (cb?: (s: string) => void) => { cb?.('SUBSCRIBED'); setTimeout(fire, 0); return ch },
+      track: async (meta: Row) => { presenceMe.set(topic, meta); presenceSubs.forEach((f) => f()) },
+      untrack: async () => { presenceMe.delete(topic); presenceSubs.forEach((f) => f()) },
+      presenceState: () => {
+        const ids: string[] = JSON.parse(globalThis.localStorage?.getItem('mock.readers') ?? '[]')
+        const st: Record<string, Row[]> = {}
+        for (const id of ids) { const p = db.profiles.find((x) => x.id === id); if (p) st[id] = [{ name: p.display_name, color: p.avatar_color, url: null }] }
+        const me = presenceMe.get(topic); if (me) st[ME] = [me]
+        return st
+      },
     }
     return ch
   },

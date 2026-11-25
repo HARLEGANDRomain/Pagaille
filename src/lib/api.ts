@@ -303,13 +303,21 @@ export async function leaveCircle(circleId: string, uid: string) {
 }
 
 export async function listMembers(circleId: string): Promise<Member[]> {
-  const m = ok(await supabase.from('circle_members').select('user_id, role').eq('circle_id', circleId)) as { user_id: string; role: 'owner' | 'member' }[]
+  // `seat` arrive avec la pièce de vie (migration du 25/11) ; sans elle, on retombe sur l'ancienne liste.
+  type Row = { user_id: string; role: 'owner' | 'member'; seat?: number | null }
+  const withSeat = await supabase.from('circle_members').select('user_id, role, seat').eq('circle_id', circleId)
+  const m = (withSeat.error ? ok(await supabase.from('circle_members').select('user_id, role').eq('circle_id', circleId)) : ok(withSeat)) as Row[]
   const ids = m.map((x) => x.user_id)
   const p = ok(await supabase.from('profiles').select('id, display_name, avatar_color, avatar_url').in('id', ids)) as { id: string; display_name: string; avatar_color: string; avatar_url: string | null }[]
   return m.map((x) => {
     const pr = p.find((y) => y.id === x.user_id)
     return { ...x, display_name: pr?.display_name ?? 'Lecteur', avatar_color: pr?.avatar_color ?? '#161D3A', avatar_url: pr?.avatar_url ?? null }
   })
+}
+
+/** S'asseoir dans la pièce du cercle (siège 0 à 11) ou se lever (null). */
+export async function chooseSeat(circleId: string, seat: number | null): Promise<void> {
+  ok(await supabase.rpc('choose_seat', { p_circle: circleId, p_seat: seat }))
 }
 
 export async function weekStatsOf(circleId: string): Promise<WeekStat[]> {

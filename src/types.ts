@@ -82,6 +82,8 @@ export interface Member {
   display_name: string
   avatar_color: string
   avatar_url?: string | null
+  /** Siège dans la pièce du cercle (0 à 11), null si pas encore assis. */
+  seat?: number | null
 }
 
 export interface Message {

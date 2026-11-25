@@ -1,16 +1,19 @@
 import { useEffect, useRef, useState } from 'react'
-import { supabase, explain } from '../lib/supabase'
+import { explain } from '../lib/supabase'
+import * as api from '../lib/api'
 import { type SessionResult } from '../lib/api'
+import { useReaders } from '../lib/presence'
+import Room from './Room'
 import { CM, MIN_DAILY_REWARD, clamp, plural, totalOf, weekDates, iso, fmtMinutes } from '../lib/logic'
 import { Avatar, Err, useToast } from '../lib/ui'
 import { useStore } from '../lib/store'
 import { useChat } from '../lib/chat'
 import { equippedItem } from '../lib/cosmetics'
 import ChatPanel from './ChatPanel'
-import type { Circle, UserBook } from '../types'
+import type { Circle, FeedItem, Member, UserBook } from '../types'
 
 /* La scène de lecture : un chrono, une ambiance, rien d'autre.
-   Avec un cercle, les amis connectés au même moment apparaissent (présence temps réel). */
+   Avec un cercle, la pièce du cercle en petit : chacun à sa place, lampe allumée pour ceux qui lisent en même temps. */
 
 type Phase = 'run' | 'form' | 'done' | 'queued'
 
@@ -31,7 +34,6 @@ export default function Scene({ book, circle, onClose }: { book: UserBook; circl
   const [res, setRes] = useState<SessionResult | null>(null)
   const [ritual, setRitual] = useState(false)
   const [mark, setMark] = useState<string | null>(null)
-  const [peers, setPeers] = useState<{ id: string; name: string; color: string; url?: string | null }[]>([])
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   const acc = useRef(0)
@@ -66,19 +68,19 @@ export default function Scene({ book, circle, onClose }: { book: UserBook; circl
     return () => { document.removeEventListener('visibilitychange', vis); void lock?.release() }
   }, [phase])
 
-  // Présence : qui lit en ce moment dans ce cercle.
+  // Présence : on se signale comme lecteur tant que le chrono tourne (lib/presence, canal partagé avec la page du cercle).
+  const readers = useReaders(circle && phase === 'run' ? circle.id : null, st.uid, { name: st.profile.display_name, color: st.profile.avatar_color, url: st.profile.avatar_url ?? null })
+  const peers = readers.filter((r) => r.id !== st.uid)
+  // La pièce du cercle, en petit : sièges, étagère, pile de la semaine.
+  const [room, setRoom] = useState<{ members: Member[]; feed: FeedItem[]; total: number } | null>(null)
   useEffect(() => {
     if (!circle) return
-    const ch = supabase.channel(`presence:${circle.id}`, { config: { presence: { key: st.uid } } })
-    ch.on('presence', { event: 'sync' }, () => {
-      const state = ch.presenceState() as Record<string, { name: string; color: string; url?: string | null }[]>
-      setPeers(Object.entries(state).filter(([id]) => id !== st.uid).map(([id, v]) => ({ id, name: v[0]?.name ?? '?', color: v[0]?.color ?? '#161D3A', url: v[0]?.url })))
-    })
-    ch.subscribe((s) => {
-      if (s === 'SUBSCRIBED') void ch.track({ name: st.profile.display_name, color: st.profile.avatar_color, url: st.profile.avatar_url ?? null })
-    })
-    return () => { void supabase.removeChannel(ch) }
-  }, [circle, st.uid, st.profile.display_name, st.profile.avatar_color, st.profile.avatar_url])
+    let live = true
+    Promise.all([api.listMembers(circle.id), api.circleFeed(circle.id), api.weekStatsOf(circle.id)])
+      .then(([members, feed, stats]) => { if (live) setRoom({ members, feed, total: stats.reduce((a, x) => a + x.pages, 0) }) })
+      .catch(() => { /* la pièce est un plus : sans elle, la rangée d'avatars suffit */ })
+    return () => { live = false }
+  }, [circle])
 
   useEffect(() => drawScene(canvas.current!, () => pausedRef.current, ambiance), [ambiance])
 
@@ -153,10 +155,14 @@ export default function Scene({ book, circle, onClose }: { book: UserBook; circl
             </p>
             {circle && (
               <>
-                <div className="row pres" style={{ justifyContent: 'center' }} aria-label="Présents">
-                  <Avatar name={st.profile.display_name} url={st.profile.avatar_url} me />
-                  {peers.map((p) => <Avatar key={p.id} name={p.name} color={p.color} url={p.url} />)}
-                </div>
+                {room ? (
+                  <Room compact members={room.members} feed={room.feed} total={room.total} goal={circle.weekly_goal_pages} readers={readers} uid={st.uid} ambiance={ambiance} />
+                ) : (
+                  <div className="row pres" style={{ justifyContent: 'center' }} aria-label="Présents">
+                    <Avatar name={st.profile.display_name} url={st.profile.avatar_url} me />
+                    {peers.map((p) => <Avatar key={p.id} name={p.name} color={p.color} url={p.url} />)}
+                  </div>
+                )}
                 <p className="small" style={{ opacity: 0.7 }}>
                   {peers.length ? `${peers.map((p) => p.name).join(', ')} ${peers.length > 1 ? 'lisent' : 'lit'} en même temps que toi.` : `Personne d’autre de ${circle.name} n’est là pour l’instant.`}
                 </p>
