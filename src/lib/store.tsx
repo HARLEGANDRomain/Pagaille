@@ -4,7 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import type { Session } from '@supabase/supabase-js'
 import { supabase } from './supabase'
 import * as api from './api'
-import { badges as computeBadges, MIN_DAILY_REWARD, iso, reached, pileCm, weekStats, streakOf, type Streak, type WeekStats } from './logic'
+import { badges as computeBadges, MIN_DAILY_REWARD, iso, reached, pileCm, weekStats, streakOf, type Streak, type WeekStats, readingDay } from './logic'
 import { applyCosmetics } from './cosmetics'
 import { bestStreakReward } from './trinkets/variants'
 import { drop, enqueue, isNetworkError, pending as pendingOf } from './offline'
@@ -40,7 +40,8 @@ interface Store {
   move: (b: UserBook, st: Status) => Promise<{ undo: () => Promise<void>; passed: [number, string] | null }>
   pay: (key: string, delta: number) => Promise<boolean>
   /** Enregistre une lecture ; sans réseau, elle est gardée sur l'appareil et envoyée plus tard. */
-  recordSession: (book: UserBook, input: { minutes: number; page: number | null; circleId?: string | null }) => Promise<Recorded>
+  /** `startedAt` : heure de départ du chrono ; elle fixe le jour de la lecture (série, rituel du jour). */
+  recordSession: (book: UserBook, input: { minutes: number; page: number | null; circleId?: string | null; startedAt?: number }) => Promise<Recorded>
   pendingCount: number
   /** Articles possédés ; pour les objets, un id par exemplaire (« obj-chat », « obj-chat#2 »…). */
   owned: Set<string>
@@ -177,13 +178,13 @@ export function StoreProvider({ session, children }: { session: Session; childre
     return false
   }, [pay])
 
-  const recordSession = useCallback(async (book: UserBook, input: { minutes: number; page: number | null; circleId?: string | null }): Promise<Recorded> => {
-    const today = iso(new Date())
-    const before = sessions.filter((x) => x.day === today).reduce((a, x) => a + x.minutes, 0)
+  const recordSession = useCallback(async (book: UserBook, input: { minutes: number; page: number | null; circleId?: string | null; startedAt?: number }): Promise<Recorded> => {
+    const day = readingDay(input.startedAt) // jour où le chrono a démarré, pas celui de l'enregistrement
+    const before = sessions.filter((x) => x.day === day).reduce((a, x) => a + x.minutes, 0)
     try {
       const m0 = reached(pileCm(books))
-      const res = await api.logSession(uid, book, input)
-      const ritual = await payRitual(today, before, res.minutes, profile?.daily_minutes ?? 10)
+      const res = await api.logSession(uid, book, { minutes: input.minutes, page: input.page, circleId: input.circleId, day })
+      const ritual = await payRitual(day, before, res.minutes, profile?.daily_minutes ?? 10)
       if (res.finished) await pay(api.closeKey(book.id, 'fini'), 30).catch(() => false)
       const m1 = reached(pileCm(books.map((b) => (b.id === book.id ? res.book : b))))
       setBook(res.book)
@@ -191,7 +192,7 @@ export function StoreProvider({ session, children }: { session: Session; childre
       return { queued: false, res, ritual, mark: m1 && m1 !== m0 ? m1[1] : null }
     } catch (e) {
       if (!isNetworkError(e)) throw e
-      enqueue(uid, { userBookId: book.id, minutes: input.minutes, page: input.page, circleId: input.circleId ?? null })
+      enqueue(uid, { userBookId: book.id, minutes: input.minutes, page: input.page, circleId: input.circleId ?? null, day })
       setPendingCount(pendingOf(uid).length)
       return { queued: true }
     }

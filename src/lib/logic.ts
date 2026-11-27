@@ -30,6 +30,9 @@ export const plural = (n: number, w: string) => `${n} ${w}${n > 1 ? 's' : ''}`
 export const iso = (d: Date) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 
+/** Jour d'une lecture : celui où le chrono a démarré (une lecture lancée à 23 h 45 et finie à 0 h 20 compte pour la veille). */
+export const readingDay = (startedAt: number | Date = Date.now()) => iso(new Date(startedAt))
+
 export function addDays(d: Date, n: number): Date {
   const x = new Date(d)
   x.setDate(x.getDate() + n)

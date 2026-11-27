@@ -123,6 +123,8 @@ const session = { user, access_token: 'mock' }
 let authCb: ((e: string, s: any) => void) | null = null
 
 const presenceMe = new Map<string, Row>(), presenceSubs: (() => void)[] = []
+// Pour les parcours de test : lire la fausse base depuis la page.
+;(globalThis as { __mockdb?: unknown }).__mockdb = db
 export const supabase = {
   from: (t: string) => new Q(t),
   rpc: async (fn: string, a: Row) => {

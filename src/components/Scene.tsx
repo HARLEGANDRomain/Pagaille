@@ -38,6 +38,7 @@ export default function Scene({ book, circle, onClose }: { book: UserBook; circl
   const [busy, setBusy] = useState(false)
   const acc = useRef(0)
   const t0 = useRef(Date.now())
+  const startedAt = useRef(Date.now()) // départ du chrono : fixe le jour de la lecture, même si on finit après minuit
   const pausedRef = useRef(false)
   const canvas = useRef<HTMLCanvasElement>(null)
   const first = useRef<HTMLButtonElement>(null)
@@ -105,7 +106,7 @@ export default function Scene({ book, circle, onClose }: { book: UserBook; circl
     e.preventDefault()
     setBusy(true); setError('')
     try {
-      const r = await st.recordSession(book, { minutes, page: page === '' ? null : Number(page), circleId: circle?.id ?? null })
+      const r = await st.recordSession(book, { minutes, page: page === '' ? null : Number(page), circleId: circle?.id ?? null, startedAt: startedAt.current })
       if (r.queued) { setPhase('queued'); return }
       setMark(r.mark)
       setRitual(r.ritual)

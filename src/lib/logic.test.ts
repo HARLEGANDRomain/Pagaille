@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   applyPage, badges, escapeLike, hash, iso, monday, nextMark, noteUnlocked, norm, pct, pileCm, reached,
   spineColors, weekDates, weekId, weekMissions, weekStats, weeksRow, streakOf, finalProgress, STREAK_STEPS,
+  readingDay,
 } from './logic'
 
 const d = (s: string) => new Date(s + 'T12:00:00')
@@ -200,5 +201,14 @@ describe('mission finale', () => {
   it('est complète quand tout est atteint', () => {
     const all = ws({ days: 4, min: 99, pages: 99, team: 1, add: 1, close: 1, note: 1 })
     expect(finalProgress(all, 4, d('2026-11-18'))).toEqual({ done: 4, total: 4 })
+  })
+})
+
+describe('jour d’une lecture', () => {
+  it('compte le jour où le chrono a démarré, même fini après minuit', () => {
+    const start = new Date(2026, 10, 26, 23, 45) // 26/11 à 23 h 45, heure locale
+    expect(readingDay(start)).toBe('2026-11-26')
+    expect(readingDay(start.getTime())).toBe('2026-11-26')
+    expect(readingDay(new Date(2026, 10, 27, 0, 20))).toBe('2026-11-27') // sans heure de départ : le jour de l'enregistrement
   })
 })
